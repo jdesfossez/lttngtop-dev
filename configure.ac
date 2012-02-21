@@ -66,6 +66,6 @@ AC_SUBST(PACKAGE_CFLAGS)
 
 AC_CONFIG_FILES([
 	Makefile
-	lttngtop/Makefile
+	src/Makefile
 ])
 AC_OUTPUT
