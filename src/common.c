@@ -42,14 +42,13 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 	/* FIXME : need to integrate with clone/fork/exit to be accurate */
 	newproc = find_process_tid(ctx, tid, comm);
 	if (!newproc) {
-		newproc = malloc(sizeof(struct processtop));
-		memset(newproc, 0, sizeof(struct processtop));
+		newproc = g_new0(struct processtop, 1);
 		newproc->tid = tid;
 		newproc->birth = timestamp;
 		newproc->process_files_table = g_ptr_array_new();
 		newproc->threads = g_ptr_array_new();
 		newproc->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
-		newproc->iostream = malloc(sizeof(struct iostream));
+		newproc->iostream = g_new0(struct iostream, 1);
 		newproc->iostream->ret_read = 0;
 		newproc->iostream->ret_write = 0;
 		newproc->iostream->ret_total = 0;
@@ -116,7 +115,7 @@ struct cputime* add_cpu(int cpu)
 {
 	struct cputime *newcpu;
 
-	newcpu = malloc(sizeof(struct cputime));
+	newcpu = g_new0(struct cputime, 1);
 	newcpu->id = cpu;
 	newcpu->current_task = NULL;
 	newcpu->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -173,7 +172,7 @@ void copy_perf_counter(gpointer key, gpointer value, gpointer new_table)
 {
 	struct perfcounter *newperf;
 	
-	newperf = malloc(sizeof(struct perfcounter));
+	newperf = g_new0(struct perfcounter, 1);
 	newperf->count = ((struct perfcounter *) value)->count;
 	newperf->visible = ((struct perfcounter *) value)->visible;
 	newperf->sort = ((struct perfcounter *) value)->sort;
@@ -212,8 +211,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	struct cputime *tmpcpu, *newcpu;
 	struct files *tmpfile, *newfile;
 
-	dst = malloc(sizeof(struct lttngtop));
-	dst = memset(dst, 0, sizeof(struct lttngtop));
+	dst = g_new0(struct lttngtop, 1);
 	dst->start = start;
 	dst->end = end;
 	dst->process_table = g_ptr_array_new();
@@ -226,7 +224,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	g_hash_table_foreach(lttngtop.perf_list, copy_perf_counter, dst->perf_list);
 	for (i = 0; i < lttngtop.process_table->len; i++) {
 		tmp = g_ptr_array_index(lttngtop.process_table, i);
-		new = malloc(sizeof(struct processtop));
+		new = g_new0(struct processtop, 1);
 
 		memcpy(new, tmp, sizeof(struct processtop));
 		new->threads = g_ptr_array_new();
@@ -235,7 +233,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		new->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
 		g_hash_table_foreach(tmp->perf, copy_perf_counter, new->perf);
 
-		new->iostream = malloc(sizeof(struct iostream));
+		new->iostream = g_new0(struct iostream, 1);
 		memcpy(new->iostream, tmp->iostream, sizeof(struct iostream));
 		/* compute the stream speed */
 		if (end - start != 0)
@@ -247,7 +245,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 
 		for (j = 0; j < tmp->process_files_table->len; j++) {
 			tmpfile = g_ptr_array_index(tmp->process_files_table, j);
-			newfile = malloc(sizeof(struct files));
+			newfile = g_new0(struct files, 1);
 
 			memcpy(newfile, tmpfile, sizeof(struct files));
 
@@ -263,7 +261,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 			 */
 			if (tmp->death > 0 && tmp->death < end) {
 				g_ptr_array_remove(tmp->process_files_table, tmpfile);
-				free(tmpfile);
+				g_free(tmpfile);
 			}
 		}
 		g_ptr_array_add(dst->process_table, new);
@@ -278,14 +276,14 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 			free(tmp->comm);
 			g_ptr_array_free(tmp->process_files_table, TRUE);
 			g_hash_table_destroy(tmp->perf);
-			free(tmp);
+			g_free(tmp);
 		}
 	}
 	rotate_perfcounter();
 
 	for (i = 0; i < lttngtop.cpu_table->len; i++) {
 		tmpcpu = g_ptr_array_index(lttngtop.cpu_table, i);
-		newcpu = malloc(sizeof(struct cputime));
+		newcpu = g_new0(struct cputime, 1);
 		memcpy(newcpu, tmpcpu, sizeof(struct cputime));
 		newcpu->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
 		g_hash_table_foreach(tmpcpu->perf, copy_perf_counter, newcpu->perf);

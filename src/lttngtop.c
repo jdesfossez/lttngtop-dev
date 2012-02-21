@@ -157,16 +157,14 @@ struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 	if (ret)
 		goto end;
 
-	ret = malloc(sizeof(struct perfcounter));
-	memset(ret, 0, sizeof(struct perfcounter));
+	ret = g_new0(struct perfcounter, 1);
 	/* by default, make it visible in the UI */
 	ret->visible = 1;
 	g_hash_table_insert(table, (gpointer) name, ret);
 
 	global = g_hash_table_lookup(lttngtop.perf_list, (gpointer) name);
 	if (!global) {
-		global = malloc(sizeof(struct perfcounter));
-		memset(global, 0, sizeof(struct perfcounter));
+		global = g_new0(struct perfcounter, 1);
 		memcpy(global, ret, sizeof(struct perfcounter));
 		/* by default, sort on the first perf context */
 		if (g_hash_table_size(lttngtop.perf_list) == 0)
