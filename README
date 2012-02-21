@@ -1,0 +1,93 @@
+lttngtop
+Julien Desfossez <julien.desfossez@polymtl.ca>
+August 2011
+
+Lttngtop is an ncurses interface for reading and browsing traces recorded by
+the LTTng tracer and displaying various statistics.
+As of now, the cpu usage and perf counters are displayed. This version currently
+only supports offline traces, but a live version is in alpha and will be
+available for testing soon.
+
+USAGE
+-----
+
+Record a trace with LTTng 2.0 with at least the sched_switch event, and the pid,
+procname, tid, ppid contexts. To have the perftop view working you can enable
+any number of perf contexts (depending on your hardware).
+For the iotop view, you need to have some syscall events : sys_read, sys_write
+and exit_syscall.
+
+Once your trace is recorded, you can use lttngtop this way :
+$ lttngtop /path/to/your/trace
+
+Make sure you have read permissions on the whole directory.
+
+NOTE
+----
+
+Since this is an early release of lttngtop, it is still inside the babeltrace
+source tree. As soon as all babeltrace dependencies are  available from the
+library and header files, lttngtop will be in its own repository. Until then,
+changes in the babeltrace source tree will be merged in this tree to avoid
+conflicts. This repository doesn't install the babeltrace binary, or any of its
+libraries. This way you can safely install it in the default locations.
+
+EXAMPLE
+-------
+
+# lttng create lttngtop
+# lttng enable-event -k sched_switch
+# lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses \
+	-t perf:major-faults -t perf:branch-load-misses
+# lttng start
+# ...do stuff...
+# lttng stop
+# lttng destroy
+
+$ lttngtop $HOME/lttng-traces/lttngtop-...
+
+BUILDING
+--------
+
+	./bootstrap (skip if using tarball)
+	./configure
+	make
+	make install
+
+DEPENDENCIES
+------------
+
+To compile Babeltrace and lttngtop, you will need:
+
+	gcc 3.2 or better
+	libc6 development librairies
+	  (Debian : libc6, libc6-dev)
+	  (Fedora : glibc, glibc)
+	glib 2.22 or better development libraries
+	  (Debian : libglib2.0-0, libglib2.0-dev)
+	  (Fedora : glib2, glib2-devel)
+	uuid development libraries
+	  (Debian : uuid-dev)
+	  (Fedora : uuid-devel)
+	libpopt >= 1.13 development libraries
+	  (Debian : libpopt-dev)
+	  (Fedora : popt)
+	ncurses development libraries
+	  (Debian : libncurses5-dev)
+
+For developers using the git tree:
+
+This source tree is based on the autotools suite from GNU to simplify
+portability. Here are some things you should have on your system in order to
+compile the git repository tree :
+
+- GNU autotools (automake >=1.10, autoconf >=2.50, autoheader >=2.50)
+  (make sure your system wide "automake" points to a recent version!)
+- GNU Libtool >=2.2
+  (for more information, go to http://www.gnu.org/software/autoconf/)
+- Flex >=2.5.35.
+- Bison >=2.4.
+
+If you get the tree from the repository, you will need to use the "bootstrap"
+script in the root of the tree. It calls all the GNU tools needed to prepare the
+tree configuration.

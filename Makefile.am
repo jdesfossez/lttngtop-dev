@@ -1,0 +1,5 @@
+AM_CFLAGS = $(PACKAGE_CFLAGS)
+
+ACLOCAL_AMFLAGS = -I m4
+
+SUBDIRS = lttngtop

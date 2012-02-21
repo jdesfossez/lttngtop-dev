@@ -1,0 +1,2 @@
+2012-02-16 LTTngTop 0.2
+	* Remove internal Babeltrace code, use the API
