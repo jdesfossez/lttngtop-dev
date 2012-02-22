@@ -157,10 +157,10 @@ struct signals {
 };
 
 struct iostream {
-        struct syscalls *syscall_info; /* NULL if there is no waiting for an exit_syscall */
-        unsigned long ret_read;        /* value returned by an I/O syscall_exit for a sys_read*/
-        unsigned long ret_write;       /* value returned by an I/O syscall_exit for a sys_write*/
-        unsigned long ret_total;
+	struct syscalls *syscall_info; /* NULL if there is no waiting for an exit_syscall */
+	unsigned long ret_read;        /* value returned by an I/O syscall_exit for a sys_read*/
+	unsigned long ret_write;       /* value returned by an I/O syscall_exit for a sys_write*/
+	unsigned long ret_total;
 };
 
 #endif /* LTTNGTOPTYPES_H */

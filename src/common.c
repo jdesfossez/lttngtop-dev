@@ -47,7 +47,7 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		newproc->birth = timestamp;
 		newproc->process_files_table = g_ptr_array_new();
 		newproc->threads = g_ptr_array_new();
-		newproc->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
+		newproc->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		newproc->iostream = g_new0(struct iostream, 1);
 		newproc->iostream->ret_read = 0;
 		newproc->iostream->ret_write = 0;
@@ -118,7 +118,7 @@ struct cputime* add_cpu(int cpu)
 	newcpu = g_new0(struct cputime, 1);
 	newcpu->id = cpu;
 	newcpu->current_task = NULL;
-	newcpu->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
+	newcpu->perf = g_hash_table_new(g_str_hash, g_str_equal);
 
 	g_ptr_array_add(lttngtop.cpu_table, newcpu);
 
@@ -176,7 +176,7 @@ void copy_perf_counter(gpointer key, gpointer value, gpointer new_table)
 	newperf->count = ((struct perfcounter *) value)->count;
 	newperf->visible = ((struct perfcounter *) value)->visible;
 	newperf->sort = ((struct perfcounter *) value)->sort;
-	g_hash_table_insert((GHashTable *) new_table, key, newperf);
+	g_hash_table_insert((GHashTable *) new_table, strdup(key), newperf);
 }
 
 void rotate_perfcounter() {
@@ -217,7 +217,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	dst->process_table = g_ptr_array_new();
 	dst->files_table = g_ptr_array_new();
 	dst->cpu_table = g_ptr_array_new();
-	dst->perf_list = g_hash_table_new(g_direct_hash, g_direct_equal);
+	dst->perf_list = g_hash_table_new(g_str_hash, g_str_equal);
 
 	rotate_cputime(end);
 
@@ -230,17 +230,16 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		new->threads = g_ptr_array_new();
 		new->comm = strdup(tmp->comm);
 		new->process_files_table = g_ptr_array_new();
-		new->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
+		new->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		g_hash_table_foreach(tmp->perf, copy_perf_counter, new->perf);
 
 		new->iostream = g_new0(struct iostream, 1);
 		memcpy(new->iostream, tmp->iostream, sizeof(struct iostream));
 		/* compute the stream speed */
-		if (end - start != 0)
-		{
-			time = (end - start)/NSEC_PER_SEC;
-			new->iostream->ret_read = new->iostream->ret_read/(time);
-			new->iostream->ret_write = new->iostream->ret_write/(time);
+		if (end - start != 0) {
+			time = (end - start) / NSEC_PER_SEC;
+			new->iostream->ret_read = new->iostream->ret_read / time;
+			new->iostream->ret_write = new->iostream->ret_write / time;
 		}
 
 		for (j = 0; j < tmp->process_files_table->len; j++) {
@@ -272,9 +271,11 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		 */
 		if (tmp->death > 0 && tmp->death < end) {
 			g_ptr_array_remove(lttngtop.process_table, tmp);
+			/* FIXME : TRUE does not mean clears the object in it */
 			g_ptr_array_free(tmp->threads, TRUE);
 			free(tmp->comm);
 			g_ptr_array_free(tmp->process_files_table, TRUE);
+			/* FIXME : clear elements */
 			g_hash_table_destroy(tmp->perf);
 			g_free(tmp);
 		}
@@ -285,7 +286,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		tmpcpu = g_ptr_array_index(lttngtop.cpu_table, i);
 		newcpu = g_new0(struct cputime, 1);
 		memcpy(newcpu, tmpcpu, sizeof(struct cputime));
-		newcpu->perf = g_hash_table_new(g_direct_hash, g_direct_equal);
+		newcpu->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		g_hash_table_foreach(tmpcpu->perf, copy_perf_counter, newcpu->perf);
 		/*
 		 * note : we don't care about the current process pointer in the copy
@@ -293,6 +294,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		 */
 		g_ptr_array_add(dst->cpu_table, newcpu);
 	}
+	/* FIXME : better algo */
 	/* create the threads index if required */
 	for (i = 0; i < dst->process_table->len; i++) {
 		tmp = g_ptr_array_index(dst->process_table, i);

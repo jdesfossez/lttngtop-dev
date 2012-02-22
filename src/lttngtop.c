@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <fts.h>
+#include <assert.h>
 
 #include "lttngtoptypes.h"
 #include "cputop.h"
@@ -73,6 +74,8 @@ static struct poptOption long_options[] = {
 void *refresh_thread(void *p)
 {
 	while (1) {
+		if (quit)
+			return NULL;
 		sem_wait(&pause_sem);
 		sem_post(&pause_sem);
 		sem_post(&timer);
@@ -93,8 +96,8 @@ void *ncurses_display(void *p)
 		sem_wait(&pause_sem);
 
 		copy = g_ptr_array_index(copies, current_display_index);
-		if (copy)
-			display(current_display_index++);
+		assert(copy);
+		display(current_display_index++);
 
 		sem_post(&goodtoupdate);
 		sem_post(&pause_sem);
@@ -160,7 +163,7 @@ struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 	ret = g_new0(struct perfcounter, 1);
 	/* by default, make it visible in the UI */
 	ret->visible = 1;
-	g_hash_table_insert(table, (gpointer) name, ret);
+	g_hash_table_insert(table, (gpointer) strdup(name), ret);
 
 	global = g_hash_table_lookup(lttngtop.perf_list, (gpointer) name);
 	if (!global) {
@@ -169,7 +172,7 @@ struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 		/* by default, sort on the first perf context */
 		if (g_hash_table_size(lttngtop.perf_list) == 0)
 			global->sort = 1;
-		g_hash_table_insert(lttngtop.perf_list, (gpointer) name, global);
+		g_hash_table_insert(lttngtop.perf_list, (gpointer) strdup(name), global);
 	}
 
 end:
@@ -258,7 +261,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	struct definition *scope;
 	unsigned long timestamp;
 
-	/* FIXME : check context pid, tid, ppid and comm */
+	/* FIXME : display nice error when missing context pid, tid, ppid and comm */
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -317,7 +320,7 @@ error:
 void init_lttngtop()
 {
 	copies = g_ptr_array_new();
-	lttngtop.perf_list = g_hash_table_new(g_direct_hash, g_direct_equal);
+	lttngtop.perf_list = g_hash_table_new(g_str_hash, g_str_equal);
 
 	sem_init(&goodtodisplay, 0, 0);
 	sem_init(&goodtoupdate, 0, 1);
@@ -564,7 +567,9 @@ int main(int argc, char **argv)
 
 	quit = 1;
 	pthread_join(display_thread, NULL);
+	pthread_join(timer_thread, NULL);
 
 end:
+	bt_context_put(bt_ctx);
 	return 0;
 }

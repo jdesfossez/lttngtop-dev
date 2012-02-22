@@ -453,9 +453,10 @@ void update_perf()
 	int header_offset = 2;
 	int perf_row = 40;
 	struct perfcounter *perfn1, *perfn2;
-	GList *perflist;
 	char *perf_key = NULL;
 	int value;
+	GHashTableIter iter;
+	gpointer key;
 
 	set_window_title(center, "Perf Top");
 	wattron(center, A_BOLD);
@@ -464,26 +465,25 @@ void update_perf()
 	mvwprintw(center, 1, 22, "NAME");
 
 	perf_row = 40;
-	perflist = g_list_first(g_hash_table_get_keys(data->perf_list));
-	while (perflist) {
-		perfn1 = g_hash_table_lookup(data->perf_list, perflist->data);
-		/* + 6 to strip the "_perf_" prefix */
+	g_hash_table_iter_init(&iter, data->perf_list);
+	while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
 		if (perfn1->visible) {
+			/* + 6 to strip the "_perf_" prefix */
 			mvwprintw(center, 1, perf_row, "%s",
-					(char *) perflist->data + 6);
+					(char *) key + 6);
 			perf_row += 20;
 		}
 		if (perfn1->sort) {
-			perf_key = (char *) perflist->data;
+			perf_key = (char *) key;
 		}
-		perflist = g_list_next(perflist);
 	}
+
 	wattroff(center, A_BOLD);
 
 	g_ptr_array_sort_with_data(data->process_table, sort_perf, perf_key);
+
 	for (i = 0; i < data->process_table->len && 
 			nblinedisplayed < max_center_lines; i++) {
-		GList *perf_keys;
 		tmp = g_ptr_array_index(data->process_table, i);
 
 		if (current_line == selected_line) {
@@ -496,24 +496,12 @@ void update_perf()
 		mvwprintw(center, current_line + header_offset, 11, "%d", tmp->tid);
 		mvwprintw(center, current_line + header_offset, 22, "%s", tmp->comm);
 
-		/* FIXME : sometimes there is a segfault here, I have no idea why :-( */
-		perf_keys = g_hash_table_get_keys(data->perf_list);
-		if (perf_keys)
-			perflist = g_list_first(perf_keys);
-		else
-			perflist = NULL;
+		g_hash_table_iter_init(&iter, data->perf_list);
 
 		perf_row = 40;
-		j = 0;
-		while (perflist) {
-			j++;
-			perfn1 = g_hash_table_lookup(data->perf_list, perflist->data);
-			if (!perfn1) {
-				perflist = g_list_next(perflist);
-				continue;
-			}
+		while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
 			if (perfn1->visible) {
-				perfn2 = g_hash_table_lookup(tmp->perf, perflist->data);
+				perfn2 = g_hash_table_lookup(tmp->perf, (char *) key);
 				if (perfn2)
 					value = perfn2->count;
 				else
@@ -521,7 +509,6 @@ void update_perf()
 				mvwprintw(center, current_line + header_offset, perf_row, "%d", value);
 				perf_row += 20;
 			}
-			perflist = g_list_next(perflist);
 		}
 
 		wattroff(center, COLOR_PAIR(5));
