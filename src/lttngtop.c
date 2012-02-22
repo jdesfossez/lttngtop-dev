@@ -334,9 +334,10 @@ void init_lttngtop()
 	lttngtop.cpu_table = g_ptr_array_new();
 }
 
-void usage(FILE *fd)
+void usage(FILE *fp)
 {
-
+	fprintf(fp, "LTTngTop %s\n\n", VERSION);
+	fprintf(fp, "Usage : lttngtop /path/to/trace\n");
 }
 
 /*

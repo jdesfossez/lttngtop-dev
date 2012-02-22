@@ -1,4 +1,4 @@
-lttngtop
+LTTngTop
 Julien Desfossez <julien.desfossez@polymtl.ca>
 August 2011
 
@@ -21,16 +21,6 @@ Once your trace is recorded, you can use lttngtop this way :
 $ lttngtop /path/to/your/trace
 
 Make sure you have read permissions on the whole directory.
-
-NOTE
-----
-
-Since this is an early release of lttngtop, it is still inside the babeltrace
-source tree. As soon as all babeltrace dependencies are  available from the
-library and header files, lttngtop will be in its own repository. Until then,
-changes in the babeltrace source tree will be merged in this tree to avoid
-conflicts. This repository doesn't install the babeltrace binary, or any of its
-libraries. This way you can safely install it in the default locations.
 
 EXAMPLE
 -------
@@ -66,14 +56,12 @@ To compile Babeltrace and lttngtop, you will need:
 	glib 2.22 or better development libraries
 	  (Debian : libglib2.0-0, libglib2.0-dev)
 	  (Fedora : glib2, glib2-devel)
-	uuid development libraries
-	  (Debian : uuid-dev)
-	  (Fedora : uuid-devel)
 	libpopt >= 1.13 development libraries
 	  (Debian : libpopt-dev)
 	  (Fedora : popt)
 	ncurses development libraries
 	  (Debian : libncurses5-dev)
+	babeltrace development library
 
 For developers using the git tree:
 
