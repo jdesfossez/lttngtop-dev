@@ -446,7 +446,7 @@ void update_process_details()
 
 void update_perf()
 {
-	int i, j;
+	int i;
 	int nblinedisplayed = 0;
 	int current_line = 0;
 	struct processtop *tmp;
