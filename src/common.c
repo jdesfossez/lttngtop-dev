@@ -16,6 +16,7 @@
  * MA 02111-1307, USA.
  */
 
+#include <babeltrace/ctf/events.h>
 #include <stdlib.h>
 #include <string.h>
 #include "common.h"
@@ -33,6 +34,70 @@ uint64_t get_cpu_id(struct bt_ctf_event *event)
 	}
 
 	return cpu_id;
+}
+
+uint64_t get_context_tid(struct bt_ctf_event *event)
+{
+	struct definition *scope;
+	uint64_t tid;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	tid = bt_ctf_get_int64(bt_ctf_get_field(event,
+				scope, "_tid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing tid context info\n");
+		return -1ULL;
+	}
+
+	return tid;
+}
+
+uint64_t get_context_pid(struct bt_ctf_event *event)
+{
+	struct definition *scope;
+	uint64_t pid;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	pid = bt_ctf_get_int64(bt_ctf_get_field(event,
+				scope, "_pid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing pid context info\n");
+		return -1ULL;
+	}
+
+	return pid;
+}
+
+uint64_t get_context_ppid(struct bt_ctf_event *event)
+{
+	struct definition *scope;
+	uint64_t ppid;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	ppid = bt_ctf_get_int64(bt_ctf_get_field(event,
+				scope, "_ppid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing ppid context info\n");
+		return -1ULL;
+	}
+
+	return ppid;
+}
+
+char *get_context_comm(struct bt_ctf_event *event)
+{
+	struct definition *scope;
+	char *comm;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	comm = bt_ctf_get_char_array(bt_ctf_get_field(event,
+				scope, "_procname"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing comm context info\n");
+		return NULL;
+	}
+
+	return comm;
 }
 
 struct processtop *find_process_tid(struct lttngtop *ctx, int tid, char *comm)

@@ -257,25 +257,23 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	if (timestamp == -1ULL)
 		goto error;
 
-	scope = bt_ctf_get_top_level_scope(call_data, BT_STREAM_EVENT_CONTEXT);
-
-	pid = bt_ctf_get_int64(bt_ctf_get_field(call_data, scope, "_pid"));
-	if (bt_ctf_field_get_error()) {
+	pid = get_context_pid(call_data);
+	if (pid == -1ULL) {
 //		fprintf(stderr, "Missing pid context info\n");
 		goto error;
 	}
-	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data, scope, "_tid"));
-	if (bt_ctf_field_get_error()) {
+	tid = get_context_tid(call_data);
+	if (tid == -1ULL) {
 //		fprintf(stderr, "Missing tid context info\n");
 		goto error;
 	}
-	ppid = bt_ctf_get_int64(bt_ctf_get_field(call_data, scope, "_ppid"));
-	if (bt_ctf_field_get_error()) {
+	ppid = get_context_ppid(call_data);
+	if (ppid == -1ULL) {
 //		fprintf(stderr, "Missing ppid context info\n");
 		goto error;
 	}
-	comm = bt_ctf_get_char_array(bt_ctf_get_field(call_data, scope, "_procname"));
-	if (bt_ctf_field_get_error()) {
+	comm = get_context_comm(call_data);
+	if (!comm) {
 //		fprintf(stderr, "Missing procname context info\n");
 		goto error;
 	}

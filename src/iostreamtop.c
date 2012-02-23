@@ -177,21 +177,8 @@ enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 	if (timestamp == -1ULL)
 		goto error;
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_EVENT_CONTEXT);
-	comm = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
-				scope, "_procname"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing procname context info\n");
-		goto error;
-	}
-
-	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
-				scope, "_tid"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing tid context info\n");
-		goto error;
-	}
+	comm = get_context_comm(call_data);
+	tid = get_context_tid(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -234,22 +221,8 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	if (timestamp == -1ULL)
 		goto error;
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_EVENT_CONTEXT);
-	comm = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
-				scope, "_procname"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing procname context info\n");
-		goto error;
-	}
-
-	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
-				scope, "_tid"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing tid context info\n");
-		goto error;
-	}
-
+	comm = get_context_comm(call_data);
+	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
@@ -287,22 +260,8 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	if (timestamp == -1ULL)
 		goto error;
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_EVENT_CONTEXT);
-	comm = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
-				scope, "_procname"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing procname context info\n");
-		goto error;
-	}
-
-	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
-				scope, "_tid"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing tid context info\n");
-		goto error;
-	}
-
+	comm = get_context_comm(call_data);
+	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
@@ -342,22 +301,8 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	if (timestamp == -1ULL)
 		goto error;
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_EVENT_CONTEXT);
-	comm = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
-				scope, "_procname"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing procname context info\n");
-		goto error;
-	}
-
-	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
-				scope, "_tid"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing tid context info\n");
-		goto error;
-	}
-
+	comm = get_context_comm(call_data);
+	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
@@ -395,21 +340,8 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 	if (timestamp == -1ULL)
 		goto error;
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_EVENT_CONTEXT);
-	comm = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
-				scope, "_procname"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing procname context info\n");
-		goto error;
-	}
-
-	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
-				scope, "_tid"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing tid context info\n");
-		goto error;
-	}
+	comm = get_context_comm(call_data);
+	tid = get_context_tid(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);

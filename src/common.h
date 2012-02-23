@@ -54,5 +54,9 @@ struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 
 /* common field access functions */
 uint64_t get_cpu_id(struct bt_ctf_event *event);
+uint64_t get_context_tid(struct bt_ctf_event *event);
+uint64_t get_context_pid(struct bt_ctf_event *event);
+uint64_t get_context_ppid(struct bt_ctf_event *event);
+char *get_context_comm(struct bt_ctf_event *event);
 
 #endif /* _COMMON_H */

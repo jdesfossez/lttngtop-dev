@@ -121,13 +121,7 @@ enum bt_cb_ret handle_sched_process_free(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
-				scope, "_tid"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing tid context info\n");
-		goto error;
-	}
-
+	tid = get_context_tid(call_data);
 	death_proc(&lttngtop, tid, comm, timestamp);
 
 	return BT_CB_OK;
