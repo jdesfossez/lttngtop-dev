@@ -248,7 +248,6 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	int pid, tid, ppid;
 	char *comm;
 	struct processtop *parent, *child;
-	struct definition *scope;
 	unsigned long timestamp;
 
 	/* FIXME : display nice error when missing context pid, tid, ppid and comm */
