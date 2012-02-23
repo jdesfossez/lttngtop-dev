@@ -20,22 +20,23 @@
 #define _IOSTREAMTOP_H
 
 #include <babeltrace/babeltrace.h>
+#include <babeltrace/ctf/events.h>
 #include <inttypes.h>
 #include <glib.h>
 #include <asm/unistd.h>
 
-/*
-#define SYS_READ  1
-#define SYS_WRITE 2
-*/
+struct files *get_file(struct processtop *proc, int fd);
+void show_table(GPtrArray *tab);
 
 enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 		void *private_data);
-
 enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		void *private_data);
-
 enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
+		void *private_data);
+enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
+		void *private_data);
+enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data);
 
 #endif /* _IOSTREAMTOP_H */

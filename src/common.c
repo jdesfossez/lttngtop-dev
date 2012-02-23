@@ -46,13 +46,15 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		newproc->tid = tid;
 		newproc->birth = timestamp;
 		newproc->process_files_table = g_ptr_array_new();
+		newproc->files_history = g_new0(struct file_history, 1);
+		newproc->files_history->next = NULL;
+		newproc->totalfileread = 0;
+		newproc->totalfilewrite = 0;
+		newproc->fileread = 0;
+		newproc->filewrite = 0;
+		newproc->syscall_info = NULL;
 		newproc->threads = g_ptr_array_new();
 		newproc->perf = g_hash_table_new(g_str_hash, g_str_equal);
-		newproc->iostream = g_new0(struct iostream, 1);
-		newproc->iostream->ret_read = 0;
-		newproc->iostream->ret_write = 0;
-		newproc->iostream->ret_total = 0;
-		newproc->iostream->syscall_info = NULL;
 		g_ptr_array_add(ctx->process_table, newproc);
 	}
 	newproc->comm = strdup(comm);
@@ -190,15 +192,24 @@ void rotate_perfcounter() {
 
 void cleanup_processtop()
 {
-	gint i;
+	gint i, j;
 	struct processtop *tmp;
+	struct files *tmpf; /* a temporary file */
 
 	for (i = 0; i < lttngtop.process_table->len; i++) {
 		tmp = g_ptr_array_index(lttngtop.process_table, i);
 		tmp->totalcpunsec = 0;
 		tmp->threadstotalcpunsec = 0;
-		tmp->iostream->ret_read = 0;
-		tmp->iostream->ret_write = 0;
+		tmp->fileread = 0;
+		tmp->filewrite = 0;
+
+		for (j = 0; j < tmp->process_files_table->len; j++) {
+			tmpf = g_ptr_array_index(tmp->process_files_table, j);
+			if (tmpf != NULL) {
+				tmpf->read = 0;
+				tmpf->write = 0;
+			}
+		}
 	}
 }
 
@@ -233,27 +244,29 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		new->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		g_hash_table_foreach(tmp->perf, copy_perf_counter, new->perf);
 
-		new->iostream = g_new0(struct iostream, 1);
-		memcpy(new->iostream, tmp->iostream, sizeof(struct iostream));
 		/* compute the stream speed */
 		if (end - start != 0) {
 			time = (end - start) / NSEC_PER_SEC;
-			new->iostream->ret_read = new->iostream->ret_read / time;
-			new->iostream->ret_write = new->iostream->ret_write / time;
+			new->fileread = new->fileread/(time);
+			new->filewrite = new->filewrite/(time);
 		}
 
 		for (j = 0; j < tmp->process_files_table->len; j++) {
 			tmpfile = g_ptr_array_index(tmp->process_files_table, j);
-			newfile = g_new0(struct files, 1);
 
-			memcpy(newfile, tmpfile, sizeof(struct files));
+			newfile = malloc(sizeof(struct files));
 
-			newfile->name = strdup(tmpfile->name);
-			newfile->ref = new;
-
-			g_ptr_array_add(new->process_files_table, newfile);
-			g_ptr_array_add(dst->files_table, newfile);
-
+			if (tmpfile != NULL) {
+				memcpy(newfile, tmpfile, sizeof(struct files));
+				newfile->name = strdup(tmpfile->name);
+				newfile->ref = new;
+				g_ptr_array_add(new->process_files_table,
+						newfile);
+				g_ptr_array_add(dst->files_table, newfile);
+			} else {
+				g_ptr_array_add(new->process_files_table, NULL);
+				g_ptr_array_add(dst->files_table, NULL);
+			}
 			/*
 			 * if the process died during the last period, we remove all
 			 * files associated with if after the copy

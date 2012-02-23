@@ -51,16 +51,20 @@ struct processtop {
 	unsigned long birth;
 	unsigned long death;
 	unsigned long lastactivity;
+	/* Files managing */
 	GPtrArray *process_files_table;
+	struct file_history *files_history;
 	GPtrArray *threads;
 	GHashTable *perf;
 	struct processtop *threadparent;
+	/* IO calculting */
 	unsigned long totalfileread;
 	unsigned long totalfilewrite;
+	unsigned long fileread;
+	unsigned long filewrite;
+	struct syscalls *syscall_info;
 	unsigned long totalcpunsec;
 	unsigned long threadstotalcpunsec;
-	/* IO speed for this process */
-	struct iostream *iostream;
 };
 
 struct perfcounter
@@ -114,6 +118,11 @@ struct files {
 	/* XXX : average wait time */
 };
 
+struct file_history {
+	struct files *file;
+	struct file_history *next;
+};
+
 struct sockets {
 	int fd;
 	int parent_fd;  /* on accept a new fd is created from the bound socket */
@@ -145,9 +154,10 @@ struct vmas {
 struct syscalls {
 	unsigned int id;
 	unsigned long count;
-        unsigned int cpu_id;
-        unsigned int type;
-        unsigned int tid;
+	unsigned int cpu_id;
+	unsigned int type;
+	unsigned int tid;
+	unsigned int fd;
 };
 
 struct signals {
@@ -156,11 +166,11 @@ struct signals {
 	unsigned long count;
 };
 
-struct iostream {
-	struct syscalls *syscall_info; /* NULL if there is no waiting for an exit_syscall */
-	unsigned long ret_read;        /* value returned by an I/O syscall_exit for a sys_read*/
-	unsigned long ret_write;       /* value returned by an I/O syscall_exit for a sys_write*/
-	unsigned long ret_total;
+struct file_info {
+	struct file_info *next;
+	char *name;
+	int fd;
+	int status;
 };
 
 #endif /* LTTNGTOPTYPES_H */

@@ -27,6 +27,7 @@
 
 #include "cursesdisplay.h"
 #include "lttngtoptypes.h"
+#include "iostreamtop.h"
 #include "common.h"
 
 #define DEFAULT_DELAY 15
@@ -210,7 +211,8 @@ void print_log(char *str)
 			wmove(status, ++current_line, 1);
 			current_char = 1;
 		} else {
-			mvwprintw(status, current_line, current_char++, "%c", log_lines[i]);
+			mvwprintw(status, current_line, current_char++, "%c",
+					log_lines[i]);
 		}
 	}
 	wrefresh(status);
@@ -420,6 +422,8 @@ void update_process_details()
 	unsigned long elapsed;
 	double maxcputime;
 	struct processtop *tmp = find_process_tid(data, selected_tid, selected_comm);
+	struct files *file_tmp;
+	int i, j = 0;
 
 	set_window_title(center, "Process details");
 
@@ -442,6 +446,23 @@ void update_process_details()
 	wprintw(center, "%d", tmp->ppid);
 	print_key_title("CPU", 5);
 	wprintw(center, "%1.2f %%", tmp->totalcpunsec/maxcputime);
+
+	print_key_title("READ B/s", 6);
+	wprintw(center, "%d", tmp->fileread);
+
+	print_key_title("WRITE B/s", 7);
+	wprintw(center, "%d", tmp->filewrite);
+
+	for (i = 0; i < tmp->process_files_table->len; i++) {
+		file_tmp = get_file(tmp, i);
+		if (file_tmp != NULL) {
+			print_key_title("file", 8+j);
+			wprintw(center, "%s fd = %d", file_tmp->name, i);
+			wprintw(center, " read = %d", file_tmp->read);
+			wprintw(center, " write = %d", file_tmp->write);
+			j++;
+		}
+	}
 }
 
 void update_perf()
@@ -506,7 +527,8 @@ void update_perf()
 					value = perfn2->count;
 				else
 					value = 0;
-				mvwprintw(center, current_line + header_offset, perf_row, "%d", value);
+				mvwprintw(center, current_line + header_offset,
+						perf_row, "%d", value);
 				perf_row += 20;
 			}
 		}
@@ -562,8 +584,9 @@ gint sort_by_ret_desc(gconstpointer p1, gconstpointer p2)
 {
 	struct processtop *n1 = *(struct processtop **)p1;
 	struct processtop *n2 = *(struct processtop **)p2;
-	unsigned long totaln1 = n1->iostream->ret_total;
-	unsigned long totaln2 = n2->iostream->ret_total;
+
+	unsigned long totaln1 = n1->totalfileread + n1->totalfilewrite;
+	unsigned long totaln2 = n2->totalfileread + n2->totalfilewrite;
 
 	if (totaln1 < totaln2)
 		return 1;
@@ -579,6 +602,7 @@ void update_iostream()
 	struct processtop *tmp;
 	int nblinedisplayed = 0;
 	int current_line = 0;
+	int total = 0;
 
 	set_window_title(center, "IO Top");
 	wattron(center, A_BOLD);
@@ -606,24 +630,28 @@ void update_iostream()
 			wattron(center, COLOR_PAIR(5));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
 		}
+
 		/* READ (bytes/sec) */
 		mvwprintw(center, current_line + header_offset, 1, "%lu",
-				tmp->iostream->ret_read);
+			tmp->fileread);
 
 		/* WRITE (bytes/sec) */
 		mvwprintw(center, current_line + header_offset, 20, "%lu",
-				tmp->iostream->ret_write);
+			tmp->filewrite);
 
 		/* TOTAL STREAM */
-		if(tmp->iostream->ret_total >= 1000000)
+		total = tmp->totalfileread + tmp->totalfilewrite;
+
+		if (total >= 1000000)
 			mvwprintw(center, current_line + header_offset, 40, "%lu MB",
-					tmp->iostream->ret_total/1000000);
-		else if(tmp->iostream->ret_total >=1000)
+					total/1000000);
+		else if (total >= 1000)
 			mvwprintw(center, current_line + header_offset, 40, "%lu KB",
-					tmp->iostream->ret_total/1000);
+					total/1000);
 		else
 			mvwprintw(center, current_line + header_offset, 40, "%lu B",
-					tmp->iostream->ret_total);
+					total);
+
 		/* TGID */
 		mvwprintw(center, current_line + header_offset, 60, "%d", tmp->pid);
 		/* PID */
@@ -701,7 +729,8 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	box(perf_panel_window, 0 , 0);
 	set_window_title(perf_panel_window, "Perf Preferences ");
 	wattron(perf_panel_window, A_BOLD);
-	mvwprintw(perf_panel_window, g_hash_table_size(data->perf_list) + 1, 1, " 's' to sort");
+	mvwprintw(perf_panel_window, g_hash_table_size(data->perf_list) + 1, 1,
+			" 's' to sort");
 	wattroff(perf_panel_window, A_BOLD);
 
 	if (toggle_sort == 1) {
@@ -952,12 +981,8 @@ void *handle_keyboard(void *p)
 			toggle_perf_panel();
 			break;
 		default:
-			/*
-			 * commented because it makes the list refresh in different order
-			 * if we sort and there are equal values
-			 if (data)
-			 update_current_view();
-			 */
+			if (data)
+				update_current_view();
 			break;
 		}
 		update_footer();
