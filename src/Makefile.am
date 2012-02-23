@@ -9,4 +9,4 @@ lttngtop_SOURCES = \
 	cputop.c \
 	iostreamtop.c
 
-lttngtop_LDADD = -lbabeltrace -lctf
+lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf
