@@ -89,14 +89,7 @@ enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_PACKET_CONTEXT);
-	cpu_id = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
-				scope, "cpu_id"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing cpu_id context info\n");
-		goto error;
-	}
+	cpu_id = get_cpu_id(call_data);
 
 	update_cputop_data(timestamp, cpu_id, prev_tid, next_tid,
 			prev_comm, next_comm);

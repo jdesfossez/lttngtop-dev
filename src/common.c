@@ -20,6 +20,21 @@
 #include <string.h>
 #include "common.h"
 
+uint64_t get_cpu_id(struct bt_ctf_event *event)
+{
+	struct definition *scope;
+	uint64_t cpu_id;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_PACKET_CONTEXT);
+	cpu_id = bt_ctf_get_uint64(bt_ctf_get_field(event, scope, "cpu_id"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "[error] get cpu_id\n");
+		return -1ULL;
+	}
+
+	return cpu_id;
+}
+
 struct processtop *find_process_tid(struct lttngtop *ctx, int tid, char *comm)
 {
 	gint i;

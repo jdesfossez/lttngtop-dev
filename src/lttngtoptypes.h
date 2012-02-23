@@ -154,7 +154,7 @@ struct vmas {
 struct syscalls {
 	unsigned int id;
 	unsigned long count;
-	unsigned int cpu_id;
+	uint64_t cpu_id;
 	unsigned int type;
 	unsigned int tid;
 	unsigned int fd;

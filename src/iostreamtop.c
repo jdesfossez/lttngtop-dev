@@ -101,7 +101,7 @@ void show_table(GPtrArray *tab)
 }
 
 int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
-		unsigned long timestamp, int cpu_id, int ret)
+		unsigned long timestamp, uint64_t cpu_id, int ret)
 {
 	struct processtop *tmp;
 	struct files *tmpfile;
@@ -134,7 +134,7 @@ int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
 	return err;
 }
 
-struct syscalls *create_syscall_info(unsigned int type, unsigned int cpu_id,
+struct syscalls *create_syscall_info(unsigned int type, uint64_t cpu_id,
 		unsigned int tid, int fd)
 {
 	struct syscalls *syscall_info;
@@ -171,7 +171,7 @@ enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 	unsigned long timestamp;
 	char *comm;
 	uint64_t ret, tid;
-	int64_t cpu_id;
+	uint64_t cpu_id;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -202,14 +202,7 @@ enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_PACKET_CONTEXT);
-	cpu_id = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
-				scope, "cpu_id"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing cpu_id context info\n");
-		goto error;
-	}
+	cpu_id = get_cpu_id(call_data);
 
 	/*
 	 * if we encounter an exit_syscall and
@@ -257,14 +250,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_PACKET_CONTEXT);
-	cpu_id = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
-				scope, "cpu_id"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing cpu_id context info\n");
-		goto error;
-	}
+	cpu_id = get_cpu_id(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -317,14 +303,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_PACKET_CONTEXT);
-	cpu_id = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
-				scope, "cpu_id"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing cpu_id context info\n");
-		goto error;
-	}
+	cpu_id = get_cpu_id(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -379,14 +358,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_STREAM_PACKET_CONTEXT);
-	cpu_id = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
-				scope, "cpu_id"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing cpu_id context info\n");
-		goto error;
-	}
+	cpu_id = get_cpu_id(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);

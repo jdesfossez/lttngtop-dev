@@ -227,17 +227,10 @@ end:
 
 void update_perf_counter(struct processtop *proc, struct bt_ctf_event *event)
 {
-	struct definition *scope;
-	uint64_t cpu_id;
 	struct cputime *cpu;
+	struct definition *scope;
 
-	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_PACKET_CONTEXT);
-	cpu_id = bt_ctf_get_uint64(bt_ctf_get_field(event, scope, "cpu_id"));
-	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "[error] get cpu_id\n");
-		goto end;
-	}
-	cpu = get_cpu(cpu_id);
+	cpu = get_cpu(get_cpu_id(event));
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
 	extract_perf_counter_scope(event, scope, proc, cpu);
@@ -247,9 +240,6 @@ void update_perf_counter(struct processtop *proc, struct bt_ctf_event *event)
 
 	scope = bt_ctf_get_top_level_scope(event, BT_EVENT_CONTEXT);
 	extract_perf_counter_scope(event, scope, proc, cpu);
-
-end:
-	return;
 }
 
 enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
