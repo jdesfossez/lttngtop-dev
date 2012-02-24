@@ -50,6 +50,16 @@ AC_CHECK_LIB([panel], [update_panels], [],
 	[AC_MSG_ERROR([Cannot find the the ncurses library.])]
 )
 
+# Check for libbabeltrace
+AC_CHECK_LIB([babeltrace], [bt_context_create], [],
+	     [AC_MSG_ERROR([Cannot find the babeltrace library.])]
+	     )
+
+# Check for libbabeltrace-ctf
+AC_CHECK_LIB([babeltrace-ctf], [bt_ctf_iter_create], [],
+	     [AC_MSG_ERROR([Cannot find the babeltrace-ctf library.])]
+	     )
+
 # Check for Glib. It needs to be installed anyway or this macro will not be defined.
 AM_PATH_GLIB_2_0([2.22.0], [],
 	[AC_MSG_ERROR([Glib 2.22 is required in order to compile LTTngTop.
