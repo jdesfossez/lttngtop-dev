@@ -24,17 +24,18 @@ Make sure you have read permissions on the whole directory.
 
 EXAMPLE
 -------
-
-# lttng create lttngtop
-# lttng enable-event -k sched_switch
-# lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses \
+# Get root (or ideally just launch lttng-sessiond as root)
+lttng create lttngtop
+lttng enable-event -k sched_switch
+lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses \
 	-t perf:major-faults -t perf:branch-load-misses
-# lttng start
-# ...do stuff...
-# lttng stop
-# lttng destroy
+lttng start
+#...do stuff...
+lttng stop
+lttng destroy
 
-$ lttngtop $HOME/lttng-traces/lttngtop-...
+# Run lttngtop
+lttngtop $HOME/lttng-traces/lttngtop-...
 
 BUILDING
 --------
