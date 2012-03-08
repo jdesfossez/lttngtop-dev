@@ -212,7 +212,7 @@ void extract_perf_counter_scope(struct bt_ctf_event *event,
 
 	for (i = 0; i < count; i++) {
 		const char *name = bt_ctf_field_name(list[i]);
-		if (strncmp(name, "_perf_", 6) == 0) {
+		if (strncmp(name, "perf_", 5) == 0) {
 			int value = bt_ctf_get_uint64(list[i]);
 			if (bt_ctf_field_get_error())
 				continue;

@@ -488,9 +488,9 @@ void update_perf()
 	g_hash_table_iter_init(&iter, data->perf_list);
 	while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
 		if (perfn1->visible) {
-			/* + 6 to strip the "_perf_" prefix */
+			/* + 5 to strip the "perf_" prefix */
 			mvwprintw(center, 1, perf_row, "%s",
-					(char *) key + 6);
+					(char *) key + 5);
 			perf_row += 20;
 		}
 		if (perfn1->sort) {
