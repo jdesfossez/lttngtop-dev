@@ -434,7 +434,7 @@ void iter_trace(struct bt_context *bt_ctx)
 	sem_wait(&end_trace_sem);
 
 end_iter:
-	bt_iter_destroy(bt_ctf_get_iter(iter));
+	bt_ctf_iter_destroy(iter);
 }
 
 /*
