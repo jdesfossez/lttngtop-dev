@@ -22,6 +22,7 @@
 #include <babeltrace/babeltrace.h>
 #include <babeltrace/ctf/events.h>
 #include <babeltrace/ctf/callbacks.h>
+#include <babeltrace/ctf/iterator.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <popt.h>
@@ -194,8 +195,8 @@ void update_perf_value(struct processtop *proc, struct cputime *cpu,
 	}
 }
 
-void extract_perf_counter_scope(struct bt_ctf_event *event,
-		struct definition *scope,
+void extract_perf_counter_scope(const struct bt_ctf_event *event,
+		const struct definition *scope,
 		struct processtop *proc,
 		struct cputime *cpu)
 {
@@ -224,10 +225,10 @@ end:
 	return;
 }
 
-void update_perf_counter(struct processtop *proc, struct bt_ctf_event *event)
+void update_perf_counter(struct processtop *proc, const struct bt_ctf_event *event)
 {
 	struct cputime *cpu;
-	struct definition *scope;
+	const struct definition *scope;
 
 	cpu = get_cpu(get_cpu_id(event));
 
@@ -384,7 +385,7 @@ void iter_trace(struct bt_context *bt_ctx)
 {
 	struct bt_ctf_iter *iter;
 	struct bt_iter_pos begin_pos;
-	struct bt_ctf_event *event;
+	const struct bt_ctf_event *event;
 	int ret = 0;
 
 	begin_pos.type = BT_SEEK_BEGIN;

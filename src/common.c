@@ -20,9 +20,9 @@
 #include <string.h>
 #include "common.h"
 
-uint64_t get_cpu_id(struct bt_ctf_event *event)
+uint64_t get_cpu_id(const struct bt_ctf_event *event)
 {
-	struct definition *scope;
+	const struct definition *scope;
 	uint64_t cpu_id;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_PACKET_CONTEXT);
@@ -35,9 +35,9 @@ uint64_t get_cpu_id(struct bt_ctf_event *event)
 	return cpu_id;
 }
 
-uint64_t get_context_tid(struct bt_ctf_event *event)
+uint64_t get_context_tid(const struct bt_ctf_event *event)
 {
-	struct definition *scope;
+	const struct definition *scope;
 	uint64_t tid;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
@@ -51,9 +51,9 @@ uint64_t get_context_tid(struct bt_ctf_event *event)
 	return tid;
 }
 
-uint64_t get_context_pid(struct bt_ctf_event *event)
+uint64_t get_context_pid(const struct bt_ctf_event *event)
 {
-	struct definition *scope;
+	const struct definition *scope;
 	uint64_t pid;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
@@ -67,9 +67,9 @@ uint64_t get_context_pid(struct bt_ctf_event *event)
 	return pid;
 }
 
-uint64_t get_context_ppid(struct bt_ctf_event *event)
+uint64_t get_context_ppid(const struct bt_ctf_event *event)
 {
-	struct definition *scope;
+	const struct definition *scope;
 	uint64_t ppid;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
@@ -83,9 +83,9 @@ uint64_t get_context_ppid(struct bt_ctf_event *event)
 	return ppid;
 }
 
-char *get_context_comm(struct bt_ctf_event *event)
+char *get_context_comm(const struct bt_ctf_event *event)
 {
-	struct definition *scope;
+	const struct definition *scope;
 	char *comm;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
