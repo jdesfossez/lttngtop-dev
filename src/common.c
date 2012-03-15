@@ -17,6 +17,7 @@
 
 #include <babeltrace/ctf/events.h>
 #include <stdlib.h>
+#include <linux/unistd.h>
 #include <string.h>
 #include "common.h"
 
@@ -125,8 +126,7 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		newproc->tid = tid;
 		newproc->birth = timestamp;
 		newproc->process_files_table = g_ptr_array_new();
-		newproc->files_history = g_new0(struct file_history, 1);
-		newproc->files_history->next = NULL;
+		newproc->files_history = NULL;
 		newproc->totalfileread = 0;
 		newproc->totalfilewrite = 0;
 		newproc->fileread = 0;
@@ -287,6 +287,11 @@ void cleanup_processtop()
 			if (tmpf != NULL) {
 				tmpf->read = 0;
 				tmpf->write = 0;
+
+				if (tmpf->flag == __NR_close)
+					g_ptr_array_index(
+						tmp->process_files_table, j
+					) = NULL;
 			}
 		}
 	}
@@ -320,6 +325,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		new->threads = g_ptr_array_new();
 		new->comm = strdup(tmp->comm);
 		new->process_files_table = g_ptr_array_new();
+		new->files_history = tmp->files_history;
 		new->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		g_hash_table_foreach(tmp->perf, copy_perf_counter, new->perf);
 

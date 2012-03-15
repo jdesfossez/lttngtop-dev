@@ -37,5 +37,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		void *private_data);
 enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data);
+enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
+		void *private_data);
 
 #endif /* _IOSTREAMTOP_H */

@@ -103,6 +103,7 @@ struct files {
 	int oldfd;
 	int device;
 	int openmode;
+	int flag;
 	unsigned long openedat;
 	unsigned long closedat;
 	unsigned long lastaccess;

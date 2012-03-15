@@ -28,15 +28,50 @@
 
 void add_file(struct processtop *proc, struct files *file, int fd)
 {
-	if (proc->process_files_table->len <= fd) {
+	struct files *tmp_file;
+	int size;
+
+	size = proc->process_files_table->len;
+
+	if (size <= fd) {
 		g_ptr_array_set_size(proc->process_files_table, fd);
 		g_ptr_array_add(proc->process_files_table, file);
 	} else {
-		g_ptr_array_index(proc->process_files_table, fd) = file;
+		tmp_file = g_ptr_array_index(proc->process_files_table, fd);
+		if (tmp_file == NULL)
+			g_ptr_array_index(proc->process_files_table, fd) = file;
+		else {
+			if (strcmp(tmp_file->name, file->name) != 0) {
+				size = proc->process_files_table->len;
+				g_ptr_array_set_size(proc->process_files_table,
+							size+1);
+				g_ptr_array_index(proc->process_files_table,
+							size) = tmp_file;
+				g_ptr_array_index(proc->process_files_table,
+							fd) = file;
+			} else
+				tmp_file->flag = __NR_open;
+		}
 	}
 	file->fd = fd;
+	file->flag = __NR_open;
 }
 
+/* TODO */
+/* To be done */
+void edit_file(struct processtop *proc, struct files *file, int fd)
+{
+	int size = proc->process_files_table->len;
+	struct files *tmpfile;
+
+	if (size <= fd)
+		return;
+	else {
+		tmpfile = g_ptr_array_index(proc->process_files_table, fd);
+		tmpfile->name = strdup(file->name);
+		free(file);
+	}
+}
 
 void insert_file(struct processtop *proc, int fd)
 {
@@ -45,6 +80,9 @@ void insert_file(struct processtop *proc, int fd)
 	if (fd >= proc->process_files_table->len) {
 		tmp = g_new0(struct files, 1);
 		tmp->name = "Unknown";
+		tmp->read = 0;
+		tmp->write = 0;
+		tmp->fd = fd;
 		add_file(proc, tmp, fd);
 	} else {
 
@@ -62,7 +100,18 @@ void insert_file(struct processtop *proc, int fd)
 
 void close_file(struct processtop *proc, int fd)
 {
+	struct files *file;
+
+
+	file = get_file(proc, fd);
+	if (file != NULL)
+		file->flag = __NR_close;
+}
+
+struct files *get_file(struct processtop *proc, int fd)
+{
 	int len;
+	struct files *tmp = NULL;
 
 	len = proc->process_files_table->len;
 
@@ -71,16 +120,9 @@ void close_file(struct processtop *proc, int fd)
 	 * and its fd could be greater than all of the others fd
 	 * used by the process
 	 */
-	if (fd < len) {
-		g_ptr_array_remove_index_fast(proc->process_files_table, fd);
-		g_ptr_array_set_size(proc->process_files_table, len + 1);
-	}
-}
+	if (fd < len && fd >= 0)
+		tmp = g_ptr_array_index(proc->process_files_table, fd);
 
-struct files *get_file(struct processtop *proc, int fd)
-{
-	struct files *tmp;
-	tmp = g_ptr_array_index(proc->process_files_table, fd);
 	return tmp;
 }
 
@@ -97,6 +139,18 @@ void show_table(GPtrArray *tab)
 			fprintf(stderr, "%s, ", file->name);
 	}
 	fprintf(stderr, "]\n\n");
+}
+
+void show_history(struct file_history *history)
+{
+	struct file_history *tmp = history;
+
+	while (tmp != NULL) {
+		fprintf(stderr, "fd = %d, name = %s\n", tmp->file->fd,
+					tmp->file->name);
+		tmp = tmp->next;
+	}
+
 }
 
 int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
@@ -123,7 +177,9 @@ int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
 			tmpfile->write += ret;
 		} else if (tmp->syscall_info->type == __NR_open
 			&& ret > 0) {
-			add_file(tmp, tmp->files_history->file, ret);
+			tmpfile = tmp->files_history->file;
+			add_file(tmp, tmpfile, ret);
+			tmpfile->fd = ret;
 		} else {
 			err = -1;
 		}
@@ -309,7 +365,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	file = bt_ctf_get_string(bt_ctf_get_field(call_data,
 				scope, "_filename"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing fd context info\n");
+		fprintf(stderr, "Missing file name context info\n");
 		goto error;
 	}
 
@@ -352,6 +408,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 	}
 
 	tmp = get_proc(&lttngtop, tid, comm, timestamp);
+
 	close_file(tmp, fd);
 
 	return BT_CB_OK;
@@ -359,3 +416,62 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 error:
 	return BT_CB_ERROR_STOP;
 }
+/*
+enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
+		void *private_data)
+{
+	struct definition *scope;
+	struct files *file;
+	unsigned long timestamp;
+	int64_t tid;
+	struct processtop *tmp;
+	char *comm, *file_name;
+	int fd;
+
+	timestamp = bt_ctf_get_timestamp(call_data);
+	if (timestamp == -1ULL)
+		goto error;
+
+	comm = get_context_comm(call_data);
+
+	scope = bt_ctf_get_top_level_scope(call_data,
+			 BT_EVENT_FIELDS);
+	tid = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
+			     scope, "_tid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing tid context info\n");
+		goto error;
+	}
+
+	scope = bt_ctf_get_top_level_scope(call_data,
+			BT_EVENT_FIELDS);
+	fd = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
+				scope, "_fd"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing fd context info\n");
+		goto error;
+	}
+
+	scope = bt_ctf_get_top_level_scope(call_data,
+			BT_EVENT_FIELDS);
+	file_name = bt_ctf_get_string(bt_ctf_get_field(call_data,
+				scope, "_filename"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing file name context info\n");
+		goto error;
+	}
+
+	file = g_new0(struct files, 1);
+	file->name = strdup(file_name);
+	file->fd = fd;
+	tmp = find_process_tid(&lttngtop, tid, comm);
+	edit_file(tmp, file, fd);
+
+	fprintf(stderr, "%lu %s\n", tmp->tid, file_name);
+
+	return BT_CB_OK;
+
+error:
+	return BT_CB_ERROR_STOP;
+}
+*/

@@ -422,6 +422,7 @@ void update_process_details()
 	double maxcputime;
 	struct processtop *tmp = find_process_tid(data, selected_tid, selected_comm);
 	struct files *file_tmp;
+	struct file_history *history = tmp->files_history;
 	int i, j = 0;
 
 	set_window_title(center, "Process details");
@@ -462,6 +463,15 @@ void update_process_details()
 			j++;
 		}
 	}
+/*
+	print_key_title("----------- Files History -----------",8+j);
+	j = 0;
+	while (history != NULL) {
+		file_tmp = history->file;
+		wprintw(center, "fd = %d\n", file_tmp->fd);//, file_tmp->fd);
+		history = history->next;
+	}
+*/
 }
 
 void update_perf()
