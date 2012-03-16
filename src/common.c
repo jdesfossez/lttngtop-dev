@@ -400,7 +400,6 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		 * the current process list after the copy
 		 */
 		if (tmp->death > 0 && tmp->death < end) {
-			fprintf(stderr, "removing : %ld : %d %s\n", end, tmp->tid, tmp->comm);
 			g_ptr_array_remove(lttngtop.process_table, tmp);
 			/* FIXME : TRUE does not mean clears the object in it */
 			g_ptr_array_free(tmp->threads, TRUE);
