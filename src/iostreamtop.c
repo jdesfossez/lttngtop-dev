@@ -55,6 +55,8 @@ void add_file(struct processtop *proc, struct files *file, int fd)
 	}
 	file->fd = fd;
 	file->flag = __NR_open;
+	lttngtop.nbfiles++;
+	lttngtop.nbnewfiles++;
 }
 
 /* TODO */
@@ -85,7 +87,6 @@ void insert_file(struct processtop *proc, int fd)
 		tmp->fd = fd;
 		add_file(proc, tmp, fd);
 	} else {
-
 		tmp = g_ptr_array_index(proc->process_files_table, fd);
 		if (tmp == NULL) {
 			tmp = g_new0(struct files, 1);
@@ -102,10 +103,12 @@ void close_file(struct processtop *proc, int fd)
 {
 	struct files *file;
 
-
 	file = get_file(proc, fd);
-	if (file != NULL)
+	if (file != NULL) {
 		file->flag = __NR_close;
+		lttngtop.nbfiles--;
+	}
+	lttngtop.nbclosedfiles++;
 }
 
 struct files *get_file(struct processtop *proc, int fd)

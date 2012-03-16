@@ -50,6 +50,7 @@ struct perfcounter *add_perf_counter(GPtrArray *perf, GQuark quark,
 		unsigned long count);
 struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 		struct cputime *cpu);
+void reset_global_counters(void);
 
 /* common field access functions */
 uint64_t get_cpu_id(const struct bt_ctf_event *event);

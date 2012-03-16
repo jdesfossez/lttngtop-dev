@@ -165,7 +165,7 @@ void print_headers(int line, char *desc, int value, int first, int second)
 	wattron(header, A_BOLD);
 	mvwprintw(header, line, 4, "%s", desc);
 	wattroff(header, A_BOLD);
-	mvwprintw(header, line, 16, "N/A", value);
+	mvwprintw(header, line, 16, "%d", value);
 	wmove(header, line, 24);
 	print_digits(header, first, second);
 	wmove(header, line, 40);
@@ -254,11 +254,9 @@ void basic_header()
 	set_window_title(header, "Statistics for interval [gathering data...[");
 	wattron(header, A_BOLD);
 	mvwprintw(header, 1, 4, "CPUs");
-	mvwprintw(header, 2, 4, "Processes");
-	mvwprintw(header, 3, 4, "Threads");
-	mvwprintw(header, 4, 4, "Files");
-	mvwprintw(header, 5, 4, "Network");
-	mvwprintw(header, 6, 4, "IO");
+	mvwprintw(header, 2, 4, "Threads");
+	mvwprintw(header, 3, 4, "Files");
+	mvwprintw(header, 4, 4, "Network");
 	wattroff(header, A_BOLD);
 	wrefresh(header);
 }
@@ -281,15 +279,13 @@ void update_header()
 	wattroff(header, A_BOLD);
 	wprintw(header, "\t%d\t(max/cpu : %0.2f%)", data->cpu_table->len,
 			100.0/data->cpu_table->len);
-	print_headers(2, "Processes", data->nbproc, data->nbnewproc,
-			-1*(data->nbdeadproc));
-	print_headers(3, "Threads", data->nbthreads, data->nbnewthreads,
+	print_headers(2, "Threads", data->nbthreads, data->nbnewthreads,
 			-1*(data->nbdeadthreads));
-	print_headers(4, "Files", data->nbfiles, data->nbnewfiles,
+	print_headers(3, "Files", data->nbfiles, data->nbnewfiles,
 			-1*(data->nbclosedfiles));
-	mvwprintw(header, 4, 43, "N/A kbytes/sec");
-	print_headers(5, "Network", 114, 0, 0);
-	mvwprintw(header, 5, 43, "N/A Mbytes/sec");
+	mvwprintw(header, 3, 43, "N/A kbytes/sec");
+	print_headers(4, "Network", 0, 0, 0);
+	mvwprintw(header, 4, 43, "N/A Mbytes/sec");
 	wrefresh(header);
 }
 
@@ -940,8 +936,8 @@ void init_ncurses()
 	sem_init(&update_display_sem, 0, 1);
 	init_screen();
 
-	header = create_window(7, COLS - 1, 0, 0);
-	center = create_window(LINES - 7 - 7, COLS - 1, 7, 0);
+	header = create_window(6, COLS - 1, 0, 0);
+	center = create_window(LINES - 7 - 7, COLS - 1, 6, 0);
 	status = create_window(MAX_LOG_LINES + 2, COLS - 1, LINES - 7, 0);
 	footer = create_window(1, COLS - 1, LINES - 1, 0);
 

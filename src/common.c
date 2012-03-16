@@ -135,6 +135,9 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		newproc->threads = g_ptr_array_new();
 		newproc->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		g_ptr_array_add(ctx->process_table, newproc);
+
+		ctx->nbnewthreads++;
+		ctx->nbthreads++;
 	}
 	newproc->comm = strdup(comm);
 
@@ -165,8 +168,11 @@ void death_proc(struct lttngtop *ctx, int tid, char *comm,
 {
 	struct processtop *tmp;
 	tmp = find_process_tid(ctx, tid, comm);
-	if (tmp && strcmp(tmp->comm, comm) == 0)
+	if (tmp && strcmp(tmp->comm, comm) == 0) {
 		tmp->death = timestamp;
+		ctx->nbdeadthreads++;
+		ctx->nbthreads--;
+	}
 }
 
 struct processtop* get_proc(struct lttngtop *ctx, int tid, char *comm,
@@ -297,6 +303,30 @@ void cleanup_processtop()
 	}
 }
 
+void reset_global_counters()
+{
+	lttngtop.nbnewproc = 0;
+	lttngtop.nbdeadproc = 0;
+	lttngtop.nbnewthreads = 0;
+	lttngtop.nbdeadthreads = 0;
+	lttngtop.nbnewfiles = 0;
+	lttngtop.nbclosedfiles = 0;
+}
+
+void copy_global_counters(struct lttngtop *dst)
+{
+	dst->nbproc = lttngtop.nbproc;
+	dst->nbnewproc = lttngtop.nbnewproc;
+	dst->nbdeadproc = lttngtop.nbdeadproc;
+	dst->nbthreads = lttngtop.nbthreads;
+	dst->nbnewthreads = lttngtop.nbnewthreads;
+	dst->nbdeadthreads = lttngtop.nbdeadthreads;
+	dst->nbfiles = lttngtop.nbfiles;
+	dst->nbnewfiles = lttngtop.nbnewfiles;
+	dst->nbclosedfiles = lttngtop.nbclosedfiles;
+	reset_global_counters();
+}
+
 struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 {
 	gint i, j;
@@ -309,6 +339,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	dst = g_new0(struct lttngtop, 1);
 	dst->start = start;
 	dst->end = end;
+	copy_global_counters(dst);
 	dst->process_table = g_ptr_array_new();
 	dst->files_table = g_ptr_array_new();
 	dst->cpu_table = g_ptr_array_new();
@@ -357,6 +388,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 			 * files associated with if after the copy
 			 */
 			if (tmp->death > 0 && tmp->death < end) {
+				/* FIXME : close the files before */
 				g_ptr_array_remove(tmp->process_files_table, tmpfile);
 				g_free(tmpfile);
 			}
@@ -368,6 +400,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		 * the current process list after the copy
 		 */
 		if (tmp->death > 0 && tmp->death < end) {
+			fprintf(stderr, "removing : %ld : %d %s\n", end, tmp->tid, tmp->comm);
 			g_ptr_array_remove(lttngtop.process_table, tmp);
 			/* FIXME : TRUE does not mean clears the object in it */
 			g_ptr_array_free(tmp->threads, TRUE);

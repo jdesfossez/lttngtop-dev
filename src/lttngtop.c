@@ -316,6 +316,11 @@ void init_lttngtop()
 	sem_init(&pause_sem, 0, 1);
 	sem_init(&end_trace_sem, 0, 0);
 
+	reset_global_counters();
+	lttngtop.nbproc = 0;
+	lttngtop.nbthreads = 0;
+	lttngtop.nbfiles = 0;
+
 	lttngtop.process_table = g_ptr_array_new();
 	lttngtop.files_table = g_ptr_array_new();
 	lttngtop.cpu_table = g_ptr_array_new();
