@@ -237,7 +237,7 @@ void update_footer()
 	wmove(footer, 1, 1);
 	print_key(footer, "F2", "CPUtop  ", current_view == cpu);
 	print_key(footer, "F3", "PerfTop  ", current_view == perf);
-	print_key(footer, "F6", "IOTop  ", current_view == iostream);
+	print_key(footer, "F4", "IOTop  ", current_view == iostream);
 	print_key(footer, "Enter", "Details  ", current_view == process_details);
 	print_key(footer, "q", "Quit | ", 0);
 	print_key(footer, "P", "Perf Pref  ", 0);
@@ -422,7 +422,6 @@ void update_process_details()
 	double maxcputime;
 	struct processtop *tmp = find_process_tid(data, selected_tid, selected_comm);
 	struct files *file_tmp;
-	struct file_history *history = tmp->files_history;
 	int i, j = 0;
 
 	set_window_title(center, "Process details");
@@ -463,15 +462,6 @@ void update_process_details()
 			j++;
 		}
 	}
-/*
-	print_key_title("----------- Files History -----------",8+j);
-	j = 0;
-	while (history != NULL) {
-		file_tmp = history->file;
-		wprintw(center, "fd = %d\n", file_tmp->fd);//, file_tmp->fd);
-		history = history->next;
-	}
-*/
 }
 
 void update_perf()
@@ -545,47 +535,6 @@ void update_perf()
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
 		current_line++;
-	}
-}
-
-void update_fileio()
-{
-	int i;
-	int offset;
-
-	set_window_title(center, "IO Top");
-	wattron(center, A_BOLD);
-	mvwprintw(center, 1, 10, "READ");
-	mvwprintw(center, 2, 1, "bytes");
-	mvwprintw(center, 2, 15, "bytes/sec");
-
-	mvwprintw(center, 1, 39, "WRITE");
-	mvwprintw(center, 2, 33, "bytes");
-	mvwprintw(center, 2, 45, "bytes/sec");
-
-	if (toggle_threads > 0) {
-		mvwprintw(center, 1, 60, "TGID");
-		mvwprintw(center, 1, 70, "PID");
-		offset = 8;
-	} else {
-		mvwprintw(center, 1, 60, "PID(TGID)");
-		offset = 0;
-	}
-	mvwprintw(center, 1, 72 + offset, "NAME");
-	wattroff(center, A_BOLD);
-
-	for (i = 3; i < LINES - 3 - 8 - 1; i++) {
-		mvwprintw(center, i, 1, "%d", i*1000);
-		mvwprintw(center, i, 15, "%dk", i);
-		mvwprintw(center, i, 28, "|    %d", i*2000);
-		mvwprintw(center, i, 45, "%dk", i*2);
-		if (toggle_threads > 0) {
-			mvwprintw(center, i, 57, "|  %d", i);
-			mvwprintw(center, i, 70, "%d", i);
-		} else {
-			mvwprintw(center, i, 57, "|  %d", i);
-		}
-		mvwprintw(center, i, 72 + offset, "process_%d", i);
 	}
 }
 
@@ -691,9 +640,6 @@ void update_current_view()
 		break;
 	case process_details:
 		update_process_details();
-		break;
-	case fileio:
-		update_fileio();
 		break;
 	case iostream:
 		update_iostream();
@@ -957,16 +903,6 @@ void *handle_keyboard(void *p)
 			update_current_view();
 			break;
 		case KEY_F(4):
-			current_view = fileio;
-			toggle_tree = -1;
-			update_current_view();
-			break;
-		case KEY_F(5):
-			current_view = netio;
-			toggle_tree = -1;
-			update_current_view();
-			break;
-		case KEY_F(6):
 			current_view = iostream;
 			toggle_tree = -1;
 			update_current_view();

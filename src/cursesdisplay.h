@@ -27,8 +27,6 @@ enum current_view_list
 	cpu = 1,
 	perf,
 	process_details,
-	fileio,
-	netio,
 	iostream,
 	tree,
 } current_view;
