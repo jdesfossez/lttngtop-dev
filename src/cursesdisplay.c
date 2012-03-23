@@ -448,13 +448,20 @@ void update_process_details()
 	print_key_title("WRITE B/s", 7);
 	wprintw(center, "%d", tmp->filewrite);
 
+	wattron(center, A_BOLD);
+	mvwprintw(center, 8, 1, "FD");
+	mvwprintw(center, 8, 12, "READ");
+	mvwprintw(center, 8, 22, "WRITE");
+	mvwprintw(center, 8, 32, "FILENAME");
+	wattroff(center, A_BOLD);
+
 	for (i = 0; i < tmp->process_files_table->len; i++) {
 		file_tmp = get_file(tmp, i);
 		if (file_tmp != NULL) {
-			print_key_title("file", 8+j);
-			wprintw(center, "%s fd = %d", file_tmp->name, i);
-			wprintw(center, " read = %d", file_tmp->read);
-			wprintw(center, " write = %d", file_tmp->write);
+			mvwprintw(center, 9 + j, 1, "%d", i);
+			mvwprintw(center, 9 + j, 12, "%d", file_tmp->read);
+			mvwprintw(center, 9 + j, 22, "%d", file_tmp->write);
+			mvwprintw(center, 9 + j, 32, "%s", file_tmp->name);
 			j++;
 		}
 	}
