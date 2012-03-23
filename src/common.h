@@ -41,6 +41,10 @@ struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 void add_thread(struct processtop *parent, struct processtop *thread);
 struct processtop* get_proc(struct lttngtop *ctx, int tid, char *comm,
 		unsigned long timestamp);
+
+struct processtop *get_proc_pid(struct lttngtop *ctx, int tid, int pid,
+		unsigned long timestamp);
+
 void death_proc(struct lttngtop *ctx, int tid, char *comm,
 		unsigned long timestamp);
 struct cputime* add_cpu(int cpu);

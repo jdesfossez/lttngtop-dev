@@ -100,6 +100,12 @@ char *get_context_comm(const struct bt_ctf_event *event)
 	return comm;
 }
 
+/*
+ * To get the parent process, put the pid in the tid field
+ * because the parent process gets pid = tid
+ *
+ * FIXME : char *comm useful ???
+ */
 struct processtop *find_process_tid(struct lttngtop *ctx, int tid, char *comm)
 {
 	gint i;
@@ -132,6 +138,7 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		newproc->fileread = 0;
 		newproc->filewrite = 0;
 		newproc->syscall_info = NULL;
+		newproc->threadparent = NULL;
 		newproc->threads = g_ptr_array_new();
 		newproc->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		g_ptr_array_add(ctx->process_table, newproc);
@@ -183,6 +190,16 @@ struct processtop* get_proc(struct lttngtop *ctx, int tid, char *comm,
 	if (tmp && strcmp(tmp->comm, comm) == 0)
 		return tmp;
 	return add_proc(ctx, tid, comm, timestamp);
+}
+
+struct processtop *get_proc_pid(struct lttngtop *ctx, int tid, int pid,
+		unsigned long timestamp)
+{
+	struct processtop *tmp;
+	tmp = find_process_tid(ctx, tid, NULL);
+	if (tmp && tmp->pid == pid)
+		return tmp;
+	return add_proc(ctx, tid, "Unknown", timestamp);
 }
 
 void add_thread(struct processtop *parent, struct processtop *thread)
@@ -258,7 +275,7 @@ void reset_perf_counter(gpointer key, gpointer value, gpointer user_data)
 void copy_perf_counter(gpointer key, gpointer value, gpointer new_table)
 {
 	struct perfcounter *newperf;
-	
+
 	newperf = g_new0(struct perfcounter, 1);
 	newperf->count = ((struct perfcounter *) value)->count;
 	newperf->visible = ((struct perfcounter *) value)->visible;

@@ -26,6 +26,7 @@
 
 struct files *get_file(struct processtop *proc, int fd);
 void show_table(GPtrArray *tab);
+void insert_file(struct processtop *proc, int fd);
 
 enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 		void *private_data);

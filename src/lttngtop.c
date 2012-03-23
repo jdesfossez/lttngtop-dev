@@ -429,13 +429,12 @@ void iter_trace(struct bt_context *bt_ctx)
 	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("sys_close"),
 			NULL, 0, handle_sys_close, NULL, NULL, NULL);
-/*
 	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string(
 					"lttng_statedump_file_descriptor"),
 			NULL, 0, handle_statedump_file_descriptor,
 			NULL, NULL, NULL);
-*/
+
 	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
 		ret = bt_iter_next(bt_ctf_get_iter(iter));
 		if (ret < 0)

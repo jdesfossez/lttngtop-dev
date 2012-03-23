@@ -29,10 +29,13 @@
 void add_file(struct processtop *proc, struct files *file, int fd)
 {
 	struct files *tmp_file;
+	struct processtop *parent;
 	int size;
 
 	size = proc->process_files_table->len;
-
+	parent = proc->threadparent;
+	if (parent)
+		insert_file(parent, fd);
 	if (size <= fd) {
 		g_ptr_array_set_size(proc->process_files_table, fd);
 		g_ptr_array_add(proc->process_files_table, file);
@@ -44,7 +47,7 @@ void add_file(struct processtop *proc, struct files *file, int fd)
 			if (strcmp(tmp_file->name, file->name) != 0) {
 				size = proc->process_files_table->len;
 				g_ptr_array_set_size(proc->process_files_table,
-							size+1);
+								size+1);
 				g_ptr_array_index(proc->process_files_table,
 							size) = tmp_file;
 				g_ptr_array_index(proc->process_files_table,
@@ -53,38 +56,53 @@ void add_file(struct processtop *proc, struct files *file, int fd)
 				tmp_file->flag = __NR_open;
 		}
 	}
-	file->fd = fd;
-	file->flag = __NR_open;
-	lttngtop.nbfiles++;
-	lttngtop.nbnewfiles++;
+	/*
+	 * The file may have be created in the parent
+	 */
+	if (file->flag == -1) {
+		file->fd = fd;
+		file->flag = __NR_open;
+		lttngtop.nbfiles++;
+		lttngtop.nbnewfiles++;
+	}
 }
 
-/* TODO */
-/* To be done */
+/*
+ * Edit the file
+ * Called by handled_statedump_filename
+ */
 void edit_file(struct processtop *proc, struct files *file, int fd)
 {
 	int size = proc->process_files_table->len;
 	struct files *tmpfile;
 
-	if (size <= fd)
-		return;
-	else {
+	if (fd >= size) {
+		add_file(proc, file, fd);
+	} else {
 		tmpfile = g_ptr_array_index(proc->process_files_table, fd);
-		tmpfile->name = strdup(file->name);
-		free(file);
+		if (tmpfile) {
+			tmpfile->name = strdup(file->name);
+			free(file);
+		} else
+			add_file(proc, file, fd);
 	}
 }
 
 void insert_file(struct processtop *proc, int fd)
 {
 	struct files *tmp;
+	struct files *tmp_parent;
+	struct processtop *parent;
 
+	if (fd < 0)
+		return;
 	if (fd >= proc->process_files_table->len) {
 		tmp = g_new0(struct files, 1);
 		tmp->name = "Unknown";
 		tmp->read = 0;
 		tmp->write = 0;
 		tmp->fd = fd;
+		tmp->flag = -1;
 		add_file(proc, tmp, fd);
 	} else {
 		tmp = g_ptr_array_index(proc->process_files_table, fd);
@@ -94,7 +112,17 @@ void insert_file(struct processtop *proc, int fd)
 			tmp->read = 0;
 			tmp->write = 0;
 			tmp->fd = fd;
+			tmp->flag = -1;
 			add_file(proc, tmp, fd);
+		} else {
+			parent = proc->threadparent;
+			if (parent) {
+				tmp_parent = g_ptr_array_index(
+					parent->process_files_table, fd);
+				if (tmp_parent &&
+				   (strcmp(tmp->name, tmp_parent->name)) != 0)
+					tmp->name = strdup(tmp_parent->name);
+			}
 		}
 	}
 }
@@ -216,6 +244,7 @@ struct file_history *create_file(struct file_history *history, char *file_name)
 	new_file->name = strdup(file_name);
 	new_file->read = 0;
 	new_file->write = 0;
+	new_file->flag = -1;
 	new_history->file = new_file;
 	new_history->next = history;
 
@@ -271,17 +300,17 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	struct processtop *tmp;
 	unsigned long timestamp;
 	uint64_t cpu_id;
-	char *comm;
-	int64_t tid;
+	int64_t tid, pid;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
-	comm = get_context_comm(call_data);
 	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
+
+	pid = get_context_pid(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -292,7 +321,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, comm, timestamp);
+	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
 	tmp->syscall_info = create_syscall_info(__NR_write, cpu_id, tid, fd);
 
 	insert_file(tmp, fd);
@@ -310,17 +339,17 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	const struct definition *scope;
 	unsigned long timestamp;
 	uint64_t cpu_id;
-	char *comm;
-	int64_t tid;
+	int64_t tid, pid;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
-	comm = get_context_comm(call_data);
 	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
+
+	pid = get_context_pid(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -331,7 +360,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, comm, timestamp);
+	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
 	tmp->syscall_info = create_syscall_info(__NR_read, cpu_id, tid, fd);
 
 	insert_file(tmp, fd);
@@ -351,17 +380,17 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	const struct definition *scope;
 	unsigned long timestamp;
 	uint64_t cpu_id;
-	char *comm;
-	int64_t tid;
+	int64_t tid, pid;
 	char *file;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
-	comm = get_context_comm(call_data);
 	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
+
+	pid = get_context_pid(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -372,7 +401,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, comm, timestamp);
+	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
 	tmp->syscall_info = create_syscall_info(__NR_open, cpu_id, tid, -1);
 
 	tmp->files_history = create_file(tmp->files_history, file);
@@ -389,17 +418,17 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 {
 	const struct definition *scope;
 	unsigned long timestamp;
-	int64_t tid;
+	int64_t tid, pid;
 	struct processtop *tmp;
-	char *comm;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
-	comm = get_context_comm(call_data);
 	tid = get_context_tid(call_data);
+
+	pid = get_context_pid(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -410,7 +439,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, comm, timestamp);
+	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
 
 	close_file(tmp, fd);
 
@@ -419,28 +448,26 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 error:
 	return BT_CB_ERROR_STOP;
 }
-/*
+
 enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	struct definition *scope;
+	const struct definition *scope;
+	struct processtop *parent;
 	struct files *file;
 	unsigned long timestamp;
-	int64_t tid;
-	struct processtop *tmp;
-	char *comm, *file_name;
+	int64_t pid;
+	char *file_name;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
-	comm = get_context_comm(call_data);
-
 	scope = bt_ctf_get_top_level_scope(call_data,
 			 BT_EVENT_FIELDS);
-	tid = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
-			     scope, "_tid"));
+	pid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+			     scope, "_pid"));
 	if (bt_ctf_field_get_error()) {
 		fprintf(stderr, "Missing tid context info\n");
 		goto error;
@@ -448,7 +475,7 @@ enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
-	fd = bt_ctf_get_uint64(bt_ctf_get_field(call_data,
+	fd = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_fd"));
 	if (bt_ctf_field_get_error()) {
 		fprintf(stderr, "Missing fd context info\n");
@@ -464,17 +491,13 @@ enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	file = g_new0(struct files, 1);
-	file->name = strdup(file_name);
-	file->fd = fd;
-	tmp = find_process_tid(&lttngtop, tid, comm);
-	edit_file(tmp, file, fd);
-
-	fprintf(stderr, "%lu %s\n", tmp->tid, file_name);
+	parent = get_proc_pid(&lttngtop, pid, pid, timestamp);
+	parent->files_history = create_file(parent->files_history, file_name);
+	file = parent->files_history->file;
+	edit_file(parent, file, fd);
 
 	return BT_CB_OK;
 
 error:
 	return BT_CB_ERROR_STOP;
 }
-*/
