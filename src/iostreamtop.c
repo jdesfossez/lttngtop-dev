@@ -199,13 +199,15 @@ int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
 			tmp->totalfileread += ret;
 			tmp->fileread += ret;
 			tmpfile = get_file(tmp, tmp->syscall_info->fd);
-			tmpfile->read += ret;
+			if (tmpfile)
+				tmpfile->read += ret;
 		} else if (tmp->syscall_info->type == __NR_write
 			&& ret > 0) {
 			tmp->totalfilewrite += ret;
 			tmp->filewrite += ret;
 			tmpfile = get_file(tmp, tmp->syscall_info->fd);
-			tmpfile->write += ret;
+			if (tmpfile)
+				tmpfile->write += ret;
 		} else if (tmp->syscall_info->type == __NR_open
 			&& ret > 0) {
 			tmpfile = tmp->files_history->file;
