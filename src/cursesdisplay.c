@@ -722,7 +722,7 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 			wattron(perf_panel_window, A_BOLD);
 		mvwprintw(perf_panel_window, i + 1, 1, "[%c] %s",
 				perf->visible == 1 ? 'x' : ' ',
-				(char *) perflist->data + 6);
+				(char *) perflist->data + 5);
 		wattroff(perf_panel_window, A_BOLD);
 		wattroff(perf_panel_window, COLOR_PAIR(5));
 		i++;
