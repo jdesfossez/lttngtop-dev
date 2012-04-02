@@ -57,10 +57,10 @@ struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 void reset_global_counters(void);
 
 /* common field access functions */
-uint64_t get_cpu_id(const struct bt_ctf_event *event);
-uint64_t get_context_tid(const struct bt_ctf_event *event);
-uint64_t get_context_pid(const struct bt_ctf_event *event);
-uint64_t get_context_ppid(const struct bt_ctf_event *event);
-char *get_context_comm(const struct bt_ctf_event *event);
+uint64_t get_cpu_id(const struct ctf_event_definition *event);
+uint64_t get_context_tid(const struct ctf_event_definition *event);
+uint64_t get_context_pid(const struct ctf_event_definition *event);
+uint64_t get_context_ppid(const struct ctf_event_definition *event);
+char *get_context_comm(const struct ctf_event_definition *event);
 
 #endif /* _COMMON_H */

@@ -45,7 +45,7 @@ void update_cputop_data(unsigned long timestamp, int64_t cpu, int prev_pid,
 	tmpcpu->task_start = timestamp;
 }
 
-enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
+enum bt_cb_ret handle_sched_switch(struct ctf_event_definition *call_data,
 		void *private_data)
 {
 	const struct definition *scope;
@@ -99,7 +99,7 @@ error:
 	return BT_CB_ERROR_STOP;
 }
 
-enum bt_cb_ret handle_sched_process_free(struct bt_ctf_event *call_data,
+enum bt_cb_ret handle_sched_process_free(struct ctf_event_definition *call_data,
 		void *private_data)
 {
 	const struct definition *scope;

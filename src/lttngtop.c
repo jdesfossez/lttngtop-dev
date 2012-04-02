@@ -113,7 +113,7 @@ void *ncurses_display(void *p)
  * hook on each event to check the timestamp and refresh the display if
  * necessary
  */
-enum bt_cb_ret check_timestamp(struct bt_ctf_event *call_data, void *private_data)
+enum bt_cb_ret check_timestamp(struct ctf_event_definition *call_data, void *private_data)
 {
 	unsigned long timestamp;
 
@@ -195,7 +195,7 @@ void update_perf_value(struct processtop *proc, struct cputime *cpu,
 	}
 }
 
-void extract_perf_counter_scope(const struct bt_ctf_event *event,
+void extract_perf_counter_scope(const struct ctf_event_definition *event,
 		const struct definition *scope,
 		struct processtop *proc,
 		struct cputime *cpu)
@@ -225,7 +225,7 @@ end:
 	return;
 }
 
-void update_perf_counter(struct processtop *proc, const struct bt_ctf_event *event)
+void update_perf_counter(struct processtop *proc, const struct ctf_event_definition *event)
 {
 	struct cputime *cpu;
 	const struct definition *scope;
@@ -242,7 +242,7 @@ void update_perf_counter(struct processtop *proc, const struct bt_ctf_event *eve
 	extract_perf_counter_scope(event, scope, proc, cpu);
 }
 
-enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
+enum bt_cb_ret fix_process_table(struct ctf_event_definition *call_data,
 		void *private_data)
 {
 	int pid, tid, ppid;
@@ -390,7 +390,7 @@ void iter_trace(struct bt_context *bt_ctx)
 {
 	struct bt_ctf_iter *iter;
 	struct bt_iter_pos begin_pos;
-	const struct bt_ctf_event *event;
+	const struct ctf_event_definition *event;
 	int ret = 0;
 
 	begin_pos.type = BT_SEEK_BEGIN;
