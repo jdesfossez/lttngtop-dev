@@ -23,10 +23,10 @@
 #include <inttypes.h>
 #include <glib.h>
 
-enum bt_cb_ret handle_sched_switch(struct ctf_event_definition *hook_data,
+enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *hook_data,
 		void *call_data);
 
-enum bt_cb_ret handle_sched_process_free(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sched_process_free(struct bt_ctf_event *call_data,
 		void *private_data);
 
 #endif /* _LTTNGTOP_H */

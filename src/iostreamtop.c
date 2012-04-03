@@ -253,7 +253,7 @@ struct file_history *create_file(struct file_history *history, char *file_name)
 	return new_history;
 }
 
-enum bt_cb_ret handle_exit_syscall(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	const struct definition *scope;
@@ -295,7 +295,7 @@ error:
 }
 
 
-enum bt_cb_ret handle_sys_write(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	const struct definition *scope;
@@ -334,7 +334,7 @@ error:
 	return BT_CB_ERROR_STOP;
 }
 
-enum bt_cb_ret handle_sys_read(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	struct processtop *tmp;
@@ -374,7 +374,7 @@ error:
 }
 
 
-enum bt_cb_ret handle_sys_open(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 
@@ -415,7 +415,7 @@ error:
 }
 
 
-enum bt_cb_ret handle_sys_close(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	const struct definition *scope;
@@ -451,7 +451,7 @@ error:
 	return BT_CB_ERROR_STOP;
 }
 
-enum bt_cb_ret handle_statedump_file_descriptor(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	const struct definition *scope;

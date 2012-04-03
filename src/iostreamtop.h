@@ -28,17 +28,17 @@ struct files *get_file(struct processtop *proc, int fd);
 void show_table(GPtrArray *tab);
 void insert_file(struct processtop *proc, int fd);
 
-enum bt_cb_ret handle_exit_syscall(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 		void *private_data);
-enum bt_cb_ret handle_sys_write(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		void *private_data);
-enum bt_cb_ret handle_sys_read(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		void *private_data);
-enum bt_cb_ret handle_sys_open(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		void *private_data);
-enum bt_cb_ret handle_sys_close(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data);
-enum bt_cb_ret handle_statedump_file_descriptor(struct ctf_event_definition *call_data,
+enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 		void *private_data);
 
 #endif /* _IOSTREAMTOP_H */
