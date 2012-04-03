@@ -302,7 +302,8 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	struct processtop *tmp;
 	unsigned long timestamp;
 	uint64_t cpu_id;
-	int64_t tid, pid;
+	int64_t tid;
+	char *procname;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -312,7 +313,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
 
-	pid = get_context_pid(call_data);
+	procname = get_context_comm(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -323,7 +324,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp);
 	tmp->syscall_info = create_syscall_info(__NR_write, cpu_id, tid, fd);
 
 	insert_file(tmp, fd);
@@ -341,7 +342,8 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	const struct definition *scope;
 	unsigned long timestamp;
 	uint64_t cpu_id;
-	int64_t tid, pid;
+	int64_t tid;
+	char *procname;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -351,7 +353,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
 
-	pid = get_context_pid(call_data);
+	procname = get_context_comm(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -362,7 +364,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp);
 	tmp->syscall_info = create_syscall_info(__NR_read, cpu_id, tid, fd);
 
 	insert_file(tmp, fd);
@@ -382,7 +384,8 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	const struct definition *scope;
 	unsigned long timestamp;
 	uint64_t cpu_id;
-	int64_t tid, pid;
+	int64_t tid;
+	char *procname;
 	char *file;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -392,7 +395,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	tid = get_context_tid(call_data);
 	cpu_id = get_cpu_id(call_data);
 
-	pid = get_context_pid(call_data);
+	procname = get_context_comm(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -403,7 +406,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp);
 	tmp->syscall_info = create_syscall_info(__NR_open, cpu_id, tid, -1);
 
 	tmp->files_history = create_file(tmp->files_history, file);
@@ -419,9 +422,10 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	const struct definition *scope;
-	unsigned long timestamp;
-	int64_t tid, pid;
 	struct processtop *tmp;
+	unsigned long timestamp;
+	int64_t tid;
+	char *procname;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -430,7 +434,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 
 	tid = get_context_tid(call_data);
 
-	pid = get_context_pid(call_data);
+	procname = get_context_comm(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -441,7 +445,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc_pid(&lttngtop, tid, pid, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp);
 
 	close_file(tmp, fd);
 

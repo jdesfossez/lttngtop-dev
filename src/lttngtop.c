@@ -412,6 +412,12 @@ void iter_trace(struct bt_context *bt_ctx)
 	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("sched_process_free"),
 			NULL, 0, handle_sched_process_free, NULL, NULL, NULL);
+	/* to get all the process from the statedumps */
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string(
+				"lttng_statedump_process_state"),
+			NULL, 0, handle_statedump_process_state,
+			NULL, NULL, NULL);
 
 	/* for IO top */
 	bt_ctf_iter_add_callback(iter,

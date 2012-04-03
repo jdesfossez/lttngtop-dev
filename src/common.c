@@ -462,3 +462,72 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	return dst;
 }
 
+
+enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
+		void *private_data)
+{
+	const struct definition *scope;
+	struct processtop *proc;
+	unsigned long timestamp;
+	int64_t pid, tid;
+	char *procname;
+
+	timestamp = bt_ctf_get_timestamp(call_data);
+	if (timestamp == -1ULL)
+		goto error;
+
+	scope = bt_ctf_get_top_level_scope(call_data,
+			 BT_EVENT_FIELDS);
+	pid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+			     scope, "_pid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing pid context info\n");
+		goto error;
+	}
+
+	scope = bt_ctf_get_top_level_scope(call_data,
+			BT_EVENT_FIELDS);
+	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+				scope, "_tid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing tid context info\n");
+		goto error;
+	}
+
+	/*
+	 * FIXME
+	 * I first tried with bt_ctf_get_string but doesn`t work at all
+	 * It couldn`t find the field _name because it is an integer in
+	 * the metadata and not a string like _filename for the
+	 * statedump_file_descriptor
+	 */
+	scope = bt_ctf_get_top_level_scope(call_data,
+			BT_EVENT_FIELDS);
+	procname = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
+				scope, "_name"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing process name context info\n");
+		goto error;
+	}
+
+	proc = find_process_tid(&lttngtop, tid, procname);
+	if (proc == NULL)
+		proc = add_proc(&lttngtop, tid, procname, timestamp);
+
+	free(proc->comm);
+	proc->comm = strdup(procname);
+	proc->pid = pid;
+
+	/*
+	 * FIXME
+	 * I would like to free procname because it is duplicated
+	 * when the process is created but it segfaults...
+	 *
+	 * free(procname);
+	 */
+
+	return BT_CB_OK;
+
+error:
+	return BT_CB_ERROR_STOP;
+}

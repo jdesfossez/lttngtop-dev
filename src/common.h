@@ -63,4 +63,7 @@ uint64_t get_context_pid(const struct bt_ctf_event *event);
 uint64_t get_context_ppid(const struct bt_ctf_event *event);
 char *get_context_comm(const struct bt_ctf_event *event);
 
+enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
+					      void *private_data);
+
 #endif /* _COMMON_H */
