@@ -904,8 +904,12 @@ void *handle_keyboard(void *p)
 			break;
 
 		case 13: /* FIXME : KEY_ENTER ?? */
-			if (current_view == cpu) {
+			if (current_view != process_details) {
+				previous_view = current_view;
 				current_view = process_details;
+			} else {
+				current_view = previous_view;
+				previous_view = process_details;
 			}
 			update_current_view();
 			break;

@@ -22,14 +22,17 @@
 #include <ncurses.h>
 #include "common.h"
 
-enum current_view_list
+enum view_list
 {
 	cpu = 1,
 	perf,
 	process_details,
 	iostream,
 	tree,
-} current_view;
+};
+
+enum view_list current_view;
+enum view_list previous_view;
 
 void display(unsigned int);
 void init_ncurses();
