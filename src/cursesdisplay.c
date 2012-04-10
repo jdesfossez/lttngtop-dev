@@ -261,20 +261,42 @@ void basic_header()
 	wrefresh(header);
 }
 
+struct tm format_timestamp(uint64_t timestamp)
+{
+	struct tm tm;
+	uint64_t ts_sec = 0, ts_nsec;
+	time_t time_s;
+
+	ts_nsec = timestamp;
+	ts_sec += ts_nsec / NSEC_PER_SEC;
+	ts_nsec = ts_nsec % NSEC_PER_SEC;
+
+	time_s = (time_t) ts_sec;
+
+	localtime_r(&time_s, &tm);
+
+	return tm;
+}
+
 void update_header()
 {
+	struct tm start, end;
+	uint64_t ts_nsec_start, ts_nsec_end;
+
+	ts_nsec_start = data->start % NSEC_PER_SEC;
+	start = format_timestamp(data->start);
+
+	ts_nsec_end = data->end % NSEC_PER_SEC;
+	end = format_timestamp(data->end);
+
 	werase(header);
 	box(header, 0 , 0);
 	set_window_title(header, "Statistics for interval ");
 	wattron(header, A_BOLD);
-	/*
-	wprintw(header, "[%lu.%lu, %lu.%lu[",
-			data->start.tv_sec, data->start.tv_nsec,
-			data->end.tv_sec, data->end.tv_nsec);
-			*/
-	wprintw(header, "[%lu, %lu[",
-            data->start,
-            data->end);
+
+	wprintw(header, "[%02d:%02d:%02d.%09" PRIu64 ", %02d:%02d:%02d.%09" PRIu64 "[",
+		start.tm_hour, start.tm_min, start.tm_sec, ts_nsec_start,
+		end.tm_hour, end.tm_min, end.tm_sec, ts_nsec_end);
 	mvwprintw(header, 1, 4, "CPUs");
 	wattroff(header, A_BOLD);
 	wprintw(header, "\t%d\t(max/cpu : %0.2f%)", data->cpu_table->len,
@@ -505,7 +527,7 @@ void update_perf()
 
 	g_ptr_array_sort_with_data(data->process_table, sort_perf, perf_key);
 
-	for (i = 0; i < data->process_table->len && 
+	for (i = 0; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
