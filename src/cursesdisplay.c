@@ -47,8 +47,6 @@ int perf_line_selected = 0;
 int last_display_index, currently_displayed_index;
 
 struct processtop *selected_process = NULL;
-int selected_tid;
-char *selected_comm;
 int selected_ret;
 
 int selected_line = 0; /* select bar position */
@@ -63,6 +61,7 @@ int toggle_threads = -1;
 int toggle_pause = -1;
 
 int max_center_lines;
+GPtrArray *selected_processes;
 
 pthread_t keyboard_thread;
 
@@ -95,6 +94,7 @@ void init_screen()
 		init_pair(3, COLOR_BLACK, COLOR_WHITE); /* keys */
 		init_pair(4, COLOR_WHITE, COLOR_GREEN); /* keys activated */
 		init_pair(5, COLOR_WHITE, COLOR_BLUE); /* select line */
+		init_pair(6, COLOR_WHITE, COLOR_GREEN); /* selected process */
 	}
 	termtype = getenv("TERM");
 	if (!strcmp(termtype, "xterm") ||  !strcmp(termtype, "xterm-color") ||
@@ -216,6 +216,30 @@ void print_log(char *str)
 	wrefresh(status);
 }
 
+int process_selected(struct processtop *process)
+{
+	int i;
+	struct processtop *stored_process;
+
+	for (i = 0; i < selected_processes->len; i++) {
+		stored_process = g_ptr_array_index(selected_processes, i);
+		if (stored_process->tid == process->tid)
+			return 1;
+	}
+	return 0;
+}
+
+void update_selected_processes()
+{
+	if (process_selected(selected_process)) {
+		g_ptr_array_remove(selected_processes, selected_process);
+		print_log("Process removed");
+	} else {
+		g_ptr_array_add(selected_processes, selected_process);
+		print_log("Process added");
+	}
+}
+
 void print_key(WINDOW *win, char *key, char *desc, int toggle)
 {
 	int pair;
@@ -238,6 +262,7 @@ void update_footer()
 	print_key(footer, "F3", "PerfTop  ", current_view == perf);
 	print_key(footer, "F4", "IOTop  ", current_view == iostream);
 	print_key(footer, "Enter", "Details  ", current_view == process_details);
+	print_key(footer, "Space", "Highlight  ", 0);
 	print_key(footer, "q", "Quit | ", 0);
 	print_key(footer, "P", "Perf Pref  ", 0);
 	print_key(footer, "p", "Pause  ", toggle_pause);
@@ -365,10 +390,12 @@ void update_cputop_display()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
+		if (process_selected(tmp)) {
+			wattron(center, COLOR_PAIR(6));
+			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
+		}
 		if (current_line == selected_line) {
 			selected_process = tmp;
-			selected_tid = tmp->tid;
-			selected_comm = tmp->comm;
 			wattron(center, COLOR_PAIR(5));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
 		}
@@ -381,6 +408,7 @@ void update_cputop_display()
 		mvwprintw(center, current_line + header_offset, 22, "%d", tmp->tid);
 		/* NAME */
 		mvwprintw(center, current_line + header_offset, 32, "%s", tmp->comm);
+		wattroff(center, COLOR_PAIR(6));
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
 		current_line++;
@@ -434,7 +462,9 @@ void update_process_details()
 {
 	unsigned long elapsed;
 	double maxcputime;
-	struct processtop *tmp = find_process_tid(data, selected_tid, selected_comm);
+	struct processtop *tmp = find_process_tid(data,
+			selected_process->tid,
+			selected_process->comm);
 	struct files *file_tmp;
 	int i, j = 0;
 
@@ -445,9 +475,9 @@ void update_process_details()
 	maxcputime = elapsed * data->cpu_table->len / 100.0;
 
 	print_key_title("Name", 1);
-	wprintw(center, "%s", selected_comm);
+	wprintw(center, "%s", tmp->comm);
 	print_key_title("TID", 2);
-	wprintw(center, "%d", selected_tid);
+	wprintw(center, "%d", tmp->tid);
 	if (!tmp) {
 		print_key_title("Does not exit at this time", 3);
 		return;
@@ -527,10 +557,12 @@ void update_perf()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
+		if (process_selected(tmp)) {
+			wattron(center, COLOR_PAIR(6));
+			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
+		}
 		if (current_line == selected_line) {
 			selected_process = tmp;
-			selected_tid = tmp->tid;
-			selected_comm = tmp->comm;
 			wattron(center, COLOR_PAIR(5));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
 		}
@@ -555,6 +587,7 @@ void update_perf()
 			}
 		}
 
+		wattroff(center, COLOR_PAIR(6));
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
 		current_line++;
@@ -604,10 +637,12 @@ void update_iostream()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
+		if (process_selected(tmp)) {
+			wattron(center, COLOR_PAIR(6));
+			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
+		}
 		if (current_line == selected_line) {
 			selected_process = tmp;
-			selected_tid = tmp->tid;
-			selected_comm = tmp->comm;
 			wattron(center, COLOR_PAIR(5));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
 		}
@@ -639,6 +674,7 @@ void update_iostream()
 		mvwprintw(center, current_line + header_offset, 80, "%d", tmp->tid);
 		/* NAME */
 		mvwprintw(center, current_line + header_offset, 92, "%s", tmp->comm);
+		wattroff(center, COLOR_PAIR(6));
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
 		current_line++;
@@ -751,7 +787,6 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	update_panels();
 	doupdate();
 }
-
 
 void toggle_perf_panel(void)
 {
@@ -877,8 +912,12 @@ void *handle_keyboard(void *p)
 
 			break;
 		case ' ':
-			if (perf_panel_visible)
+			if (perf_panel_visible) {
 				update_perf_panel(perf_line_selected, 1, 0);
+			} else {
+				update_selected_processes();
+				update_current_view();
+			}
 			break;
 		case 's':
 			if (perf_panel_visible)
@@ -946,6 +985,7 @@ void *handle_keyboard(void *p)
 
 void init_ncurses()
 {
+	selected_processes = g_ptr_array_new();
 	sem_init(&update_display_sem, 0, 1);
 	init_screen();
 
