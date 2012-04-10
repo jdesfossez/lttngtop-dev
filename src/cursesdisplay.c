@@ -821,20 +821,6 @@ void *handle_keyboard(void *p)
 			}
 			break;
 		case KEY_NPAGE:
-			if ((selected_line + 10 < max_center_lines - 1) &&
-					((selected_line + 10) < max_elements - 1)) {
-				selected_line += 10;
-				selected_in_list += 10;
-			} else if (max_elements > max_center_lines) {
-				selected_line = max_center_lines - 1;
-				if (selected_in_list + 10 < max_elements - 1) {
-					selected_in_list += 10;
-					list_offset += (selected_in_list - max_center_lines + 1);
-				}
-			} else if (selected_line + 10 > max_elements) {
-				selected_line = max_elements - 1;
-			}
-			update_current_view();
 			break;
 		case KEY_UP:
 			if (perf_panel_visible) {
@@ -853,11 +839,6 @@ void *handle_keyboard(void *p)
 			}
 			break;
 		case KEY_PPAGE:
-			if (selected_line - 10 > 0)
-				selected_line -= 10;
-			else
-				selected_line = 0;
-			update_current_view();
 			break;
 
 		/* Navigate the history with arrows */
