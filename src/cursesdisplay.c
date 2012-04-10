@@ -255,8 +255,7 @@ void basic_header()
 	wattron(header, A_BOLD);
 	mvwprintw(header, 1, 4, "CPUs");
 	mvwprintw(header, 2, 4, "Threads");
-	mvwprintw(header, 3, 4, "Files");
-	mvwprintw(header, 4, 4, "Network");
+	mvwprintw(header, 3, 4, "FDs");
 	wattroff(header, A_BOLD);
 	wrefresh(header);
 }
@@ -303,11 +302,9 @@ void update_header()
 			100.0/data->cpu_table->len);
 	print_headers(2, "Threads", data->nbthreads, data->nbnewthreads,
 			-1*(data->nbdeadthreads));
-	print_headers(3, "Files", data->nbfiles, data->nbnewfiles,
+	print_headers(3, "FDs", data->nbfiles, data->nbnewfiles,
 			-1*(data->nbclosedfiles));
 	mvwprintw(header, 3, 43, "N/A kbytes/sec");
-	print_headers(4, "Network", 0, 0, 0);
-	mvwprintw(header, 4, 43, "N/A Mbytes/sec");
 	wrefresh(header);
 }
 
@@ -362,7 +359,7 @@ void update_cputop_display()
 	mvwprintw(center, 1, 32, "NAME");
 	wattroff(center, A_BOLD);
 
-	max_center_lines = LINES - 7 - 7 - 1 - header_offset;
+	max_center_lines = LINES - 5 - 7 - 1 - header_offset;
 
 	/* iterate the process (thread) list */
 	for (i = list_offset; i < data->process_table->len &&
@@ -965,8 +962,8 @@ void init_ncurses()
 	sem_init(&update_display_sem, 0, 1);
 	init_screen();
 
-	header = create_window(6, COLS - 1, 0, 0);
-	center = create_window(LINES - 7 - 7, COLS - 1, 6, 0);
+	header = create_window(5, COLS - 1, 0, 0);
+	center = create_window(LINES - 5 - 7, COLS - 1, 5, 0);
 	status = create_window(MAX_LOG_LINES + 2, COLS - 1, LINES - 7, 0);
 	footer = create_window(1, COLS - 1, LINES - 1, 0);
 
