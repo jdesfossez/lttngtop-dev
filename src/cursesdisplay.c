@@ -61,7 +61,6 @@ int max_elements = 80;
 
 int toggle_threads = -1;
 int toggle_pause = -1;
-int toggle_tree = -1;
 
 int max_center_lines;
 
@@ -530,6 +529,8 @@ void update_perf()
 
 		if (current_line == selected_line) {
 			selected_process = tmp;
+			selected_tid = tmp->tid;
+			selected_comm = tmp->comm;
 			wattron(center, COLOR_PAIR(5));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
 		}
@@ -915,22 +916,23 @@ void *handle_keyboard(void *p)
 			break;
 
 		case KEY_F(1):
-			toggle_tree *= -1;
 			current_view = cpu;
+			selected_line = 0;
 			update_current_view();
 			break;
 		case KEY_F(2):
 			current_view = cpu;
+			selected_line = 0;
 			update_current_view();
 			break;
 		case KEY_F(3):
 			current_view = perf;
-			toggle_tree = -1;
+			selected_line = 0;
 			update_current_view();
 			break;
 		case KEY_F(4):
 			current_view = iostream;
-			toggle_tree = -1;
+			selected_line = 0;
 			update_current_view();
 			break;
 		case KEY_F(10):
