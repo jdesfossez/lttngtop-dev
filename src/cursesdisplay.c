@@ -301,10 +301,37 @@ struct tm format_timestamp(uint64_t timestamp)
 	return tm;
 }
 
+static void scale_unit(uint64_t bytes, char *ret)
+{
+	if (bytes >= 1000000000)
+		sprintf(ret, "%" PRIu64 "G", bytes/1000000000);
+	if (bytes >= 1000000)
+		sprintf(ret, "%" PRIu64 "M", bytes/1000000);
+	else if (bytes >= 1000)
+		sprintf(ret, "%" PRIu64 "K", bytes/1000);
+	else
+		sprintf(ret, "%" PRIu64, bytes);
+}
+uint64_t total_io()
+{
+	int i;
+	struct processtop *tmp;
+	uint64_t total = 0;
+
+	for (i = 0; i < data->process_table->len; i++) {
+		tmp = g_ptr_array_index(data->process_table, i);
+		total += tmp->fileread;
+		total += tmp->filewrite;
+	}
+
+	return total;
+}
+
 void update_header()
 {
 	struct tm start, end;
 	uint64_t ts_nsec_start, ts_nsec_end;
+	char io[4];
 
 	ts_nsec_start = data->start % NSEC_PER_SEC;
 	start = format_timestamp(data->start);
@@ -328,7 +355,8 @@ void update_header()
 			-1*(data->nbdeadthreads));
 	print_headers(3, "FDs", data->nbfiles, data->nbnewfiles,
 			-1*(data->nbclosedfiles));
-	mvwprintw(header, 3, 43, "N/A kbytes/sec");
+	scale_unit(total_io(), io);
+	mvwprintw(header, 3, 43, "%sB/sec", io);
 	wrefresh(header);
 }
 
@@ -467,6 +495,7 @@ void update_process_details()
 			selected_process->comm);
 	struct files *file_tmp;
 	int i, j = 0;
+	char unit[4];
 
 	set_window_title(center, "Process details");
 
@@ -491,25 +520,29 @@ void update_process_details()
 	wprintw(center, "%1.2f %%", tmp->totalcpunsec/maxcputime);
 
 	print_key_title("READ B/s", 6);
-	wprintw(center, "%d", tmp->fileread);
+	scale_unit(tmp->fileread, unit);
+	wprintw(center, "%s", unit);
 
 	print_key_title("WRITE B/s", 7);
-	wprintw(center, "%d", tmp->filewrite);
+	scale_unit(tmp->filewrite, unit);
+	wprintw(center, "%s", unit);
 
 	wattron(center, A_BOLD);
 	mvwprintw(center, 8, 1, "FD");
-	mvwprintw(center, 8, 12, "READ");
-	mvwprintw(center, 8, 22, "WRITE");
-	mvwprintw(center, 8, 32, "FILENAME");
+	mvwprintw(center, 8, 10, "READ");
+	mvwprintw(center, 8, 17, "WRITE");
+	mvwprintw(center, 8, 24, "FILENAME");
 	wattroff(center, A_BOLD);
 
 	for (i = 0; i < tmp->process_files_table->len; i++) {
 		file_tmp = get_file(tmp, i);
 		if (file_tmp != NULL) {
 			mvwprintw(center, 9 + j, 1, "%d", i);
-			mvwprintw(center, 9 + j, 12, "%d", file_tmp->read);
-			mvwprintw(center, 9 + j, 22, "%d", file_tmp->write);
-			mvwprintw(center, 9 + j, 32, "%s", file_tmp->name);
+			scale_unit(file_tmp->read, unit);
+			mvwprintw(center, 9 + j, 10, "%s", unit);
+			scale_unit(file_tmp->write, unit);
+			mvwprintw(center, 9 + j, 17, "%s", unit);
+			mvwprintw(center, 9 + j, 24, "%s", file_tmp->name);
 			j++;
 		}
 	}
@@ -617,18 +650,16 @@ void update_iostream()
 	int nblinedisplayed = 0;
 	int current_line = 0;
 	int total = 0;
+	char unit[4];
 
 	set_window_title(center, "IO Top");
 	wattron(center, A_BOLD);
-	mvwprintw(center, 1, 1, "READ (B/s)");
-	mvwprintw(center, 1, 20, "WRITE (B/s)");
-
-	mvwprintw(center, 1, 40, "TOTAL STREAM");
-
-	mvwprintw(center, 1, 60, "TGID");
-	mvwprintw(center, 1, 80, "PID");
-
-	mvwprintw(center, 1, 92, "NAME");
+	mvwprintw(center, 1, 1, "PID");
+	mvwprintw(center, 1, 11, "TID");
+	mvwprintw(center, 1, 22, "NAME");
+	mvwprintw(center, 1, 40, "R (B/sec)");
+	mvwprintw(center, 1, 52, "W (B/sec)");
+	mvwprintw(center, 1, 64, "Total");
 	wattroff(center, A_BOLD);
 
 	g_ptr_array_sort(data->process_table, sort_by_ret_desc);
@@ -646,34 +677,27 @@ void update_iostream()
 			wattron(center, COLOR_PAIR(5));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
 		}
+		/* TGID */
+		mvwprintw(center, current_line + header_offset, 1, "%d", tmp->pid);
+		/* PID */
+		mvwprintw(center, current_line + header_offset, 11, "%d", tmp->tid);
+		/* NAME */
+		mvwprintw(center, current_line + header_offset, 22, "%s", tmp->comm);
 
 		/* READ (bytes/sec) */
-		mvwprintw(center, current_line + header_offset, 1, "%lu",
-			tmp->fileread);
+		scale_unit(tmp->fileread, unit);
+		mvwprintw(center, current_line + header_offset, 40, "%s", unit);
 
 		/* WRITE (bytes/sec) */
-		mvwprintw(center, current_line + header_offset, 20, "%lu",
-			tmp->filewrite);
+		scale_unit(tmp->filewrite, unit);
+		mvwprintw(center, current_line + header_offset, 52, "%s", unit);
 
 		/* TOTAL STREAM */
 		total = tmp->totalfileread + tmp->totalfilewrite;
 
-		if (total >= 1000000)
-			mvwprintw(center, current_line + header_offset, 40, "%lu MB",
-					total/1000000);
-		else if (total >= 1000)
-			mvwprintw(center, current_line + header_offset, 40, "%lu KB",
-					total/1000);
-		else
-			mvwprintw(center, current_line + header_offset, 40, "%lu B",
-					total);
+		scale_unit(total, unit);
+		mvwprintw(center, current_line + header_offset, 64, "%s", unit);
 
-		/* TGID */
-		mvwprintw(center, current_line + header_offset, 60, "%d", tmp->pid);
-		/* PID */
-		mvwprintw(center, current_line + header_offset, 80, "%d", tmp->tid);
-		/* NAME */
-		mvwprintw(center, current_line + header_offset, 92, "%s", tmp->comm);
 		wattroff(center, COLOR_PAIR(6));
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
