@@ -490,9 +490,7 @@ void update_process_details()
 {
 	unsigned long elapsed;
 	double maxcputime;
-	struct processtop *tmp = find_process_tid(data,
-			selected_process->tid,
-			selected_process->comm);
+	struct processtop *tmp;
 	struct files *file_tmp;
 	int i, j = 0;
 	char unit[4];
@@ -500,13 +498,16 @@ void update_process_details()
 	set_window_title(center, "Process details");
 
 
+	tmp = find_process_tid(data,
+			selected_process->tid,
+			selected_process->comm);
 	elapsed = data->end - data->start;
 	maxcputime = elapsed * data->cpu_table->len / 100.0;
 
 	print_key_title("Name", 1);
-	wprintw(center, "%s", tmp->comm);
+	wprintw(center, "%s", selected_process->comm);
 	print_key_title("TID", 2);
-	wprintw(center, "%d", tmp->tid);
+	wprintw(center, "%d", selected_process->tid);
 	if (!tmp) {
 		print_key_title("Does not exit at this time", 3);
 		return;
