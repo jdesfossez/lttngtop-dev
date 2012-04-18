@@ -1,12 +1,12 @@
 LTTngTop
 Julien Desfossez <julien.desfossez@polymtl.ca>
-August 2011
+April 2012
 
 Lttngtop is an ncurses interface for reading and browsing traces recorded by
 the LTTng tracer and displaying various statistics.
-As of now, the cpu usage and perf counters are displayed. This version currently
-only supports offline traces, but a live version is in alpha and will be
-available for testing soon.
+As of now, the cpu usage, per file/process I/O bandwidth and perf counters are
+displayed. This version currently only supports offline traces, but a live
+version is in alpha and will be available for testing soon.
 
 USAGE
 -----

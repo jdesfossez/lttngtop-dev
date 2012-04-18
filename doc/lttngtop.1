@@ -1,0 +1,94 @@
+.TH "LTTNGTOP" "1" "April 18, 2012" "" ""
+
+.SH "NAME"
+lttngtop \(em LTTng Trace Viewer
+
+.SH "SYNOPSIS"
+
+.PP
+.nf
+lttngtop INPUT
+.fi
+.SH "DESCRIPTION"
+
+.PP
+
+Lttngtop is a ncurses interface for reading and browsing traces recorded by the
+LTTng tracer and displaying various statistics. As of now, the cpu usage,
+performance counters and per process/file I/O bandwidth are displayed. This
+version currently only supports offline traces, but a live version is in alpha
+and will be available for testing soon.
+.SH "OPTIONS"
+
+.TP
+.BR "INPUT"
+Input trace path
+
+.SH "TRACE REQUIREMENTS"
+
+.PP
+
+LTTngTop requires that the pid, procname, tid and ppid context information
+are enabled during tracing.
+.PP
+
+.PP
+If you want the CPU activity view, you need the sched_switch event, if you
+want the I/O statistics, you need to enable the system call tracing, and if
+you want the performance counters, you need to enable them for the events you
+are interested in (or all of them). Note, there is a hardware limitation for the
+number of performance counter you can enable, check dmesg for information.
+.PP
+
+.PP
+The following example creates a trace with all events enabled, the mandatory context informations and
+three performance counters. It assumes that you are running as root or with a user part of the tracing group and a lttng-sessiond
+launched as root.
+.PP
+
+.nf
+lttng create lttngtop
+lttng enable-event -k -a
+lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses -t perf:major-faults -t perf:branch-load-misses
+lttng start
+sleep 10
+lttng stop
+lttng destroy
+.fi
+
+.SH "SEE ALSO"
+
+.PP
+babeltrace(1), babeltrace-log(1), lttng(1), lttng-ust(3), lttng-sessiond(8)
+.PP
+.SH "BUGS"
+
+.PP
+No knows bugs at this point.
+
+If you encounter any issues or usability problem, please report it on
+our mailing list <lttng-dev@lists.lttng.org> to help improve this
+project.
+.SH "CREDITS"
+
+LTTngTop is distributed under the GPLv2 license. See the LICENSE file
+in the source tree for details.
+
+.PP
+A Web site is available at http://www.efficios.com/babeltrace for more
+information on Babeltrace and the Common Trace Format. See
+http://lttng.org for more information on the LTTng project.
+.PP
+Mailing list for support and development: <lttng-dev@lists.lttng.org>.
+.PP
+You can find us on IRC server irc.oftc.net (OFTC) in #lttng.
+.PP
+
+.SH "AUTHORS"
+
+.PP
+LTTngTop was originally written by Julien Desfossez, with contribution
+from Mathieu Bain for the I/O bandwidth view, and suggestions and ideas
+from the team working with the LTTng project. It is currently
+maintained by Julien Desfossez <jdesfossez@efficios.com>
+.PP
