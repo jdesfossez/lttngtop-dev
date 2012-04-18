@@ -548,7 +548,7 @@ error:
 	return ret;
 }
 
-int check_field_requirements(const struct bt_ctf_field_decl *const * field_list,
+static int check_field_requirements(const struct bt_ctf_field_decl *const * field_list,
 		int field_cnt, int *tid_check, int *pid_check,
 		int *procname_check, int *ppid_check)
 {
@@ -586,8 +586,6 @@ int check_field_requirements(const struct bt_ctf_field_decl *const * field_list,
  *
  * If each mandatory context information is available for at least in one
  * event, return 0 otherwise return -1.
- * Also, we make here a list for all the perf counters available during the
- * trace.
  */
 int check_requirements(struct bt_context *ctx)
 {
