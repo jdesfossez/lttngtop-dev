@@ -548,6 +548,106 @@ error:
 	return ret;
 }
 
+int check_field_requirements(const struct bt_ctf_field_decl *const * field_list,
+		int field_cnt, int *tid_check, int *pid_check,
+		int *procname_check, int *ppid_check)
+{
+	int j;
+
+	for (j = 0; j < field_cnt; j++) {
+		if (*tid_check == 0) {
+			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "tid", 3) == 0) {
+				(*tid_check)++;
+			}
+		}
+		if (*pid_check == 0) {
+			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "pid", 3) == 0)
+				(*pid_check)++;
+		}
+		if (*ppid_check == 0) {
+			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "ppid", 4) == 0)
+				(*ppid_check)++;
+		}
+		if (*procname_check == 0) {
+			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "procname", 8) == 0)
+				(*procname_check)++;
+		}
+	}
+	/* if all checks are OK, no need to continue the checks */
+	if (*tid_check == 1 && *pid_check == 1 && *ppid_check == 1 &&
+			*procname_check == 1)
+		return 0;
+
+	return -1;
+}
+
+/*
+ * check_requirements: check if the required context informations are available
+ *
+ * If each mandatory context information is available for at least in one
+ * event, return 0 otherwise return -1.
+ * Also, we make here a list for all the perf counters available during the
+ * trace.
+ */
+int check_requirements(struct bt_context *ctx)
+{
+	unsigned int i, evt_cnt, field_cnt;
+	struct bt_ctf_event_decl *const * evt_list;
+	const struct bt_ctf_field_decl *const * field_list;
+	int tid_check = 0;
+	int pid_check = 0;
+	int procname_check = 0;
+	int ppid_check = 0;
+	int ret = 0;
+
+	bt_ctf_get_event_decl_list(0, ctx, &evt_list, &evt_cnt);
+	for (i = 0; i < evt_cnt; i++) {
+		bt_ctf_get_decl_fields(evt_list[i], BT_STREAM_EVENT_CONTEXT,
+				&field_list, &field_cnt);
+		ret = check_field_requirements(field_list, field_cnt,
+				&tid_check, &pid_check, &procname_check,
+				&ppid_check);
+		if (ret == 0)
+			goto end;
+
+		bt_ctf_get_decl_fields(evt_list[i], BT_EVENT_CONTEXT,
+				&field_list, &field_cnt);
+		ret = check_field_requirements(field_list, field_cnt,
+				&tid_check, &pid_check, &procname_check,
+				&ppid_check);
+		if (ret == 0)
+			goto end;
+
+		bt_ctf_get_decl_fields(evt_list[i], BT_STREAM_PACKET_CONTEXT,
+				&field_list, &field_cnt);
+		ret = check_field_requirements(field_list, field_cnt,
+				&tid_check, &pid_check, &procname_check,
+				&ppid_check);
+		if (ret == 0)
+			goto end;
+	}
+
+	if (tid_check == 0) {
+		ret = -1;
+		fprintf(stderr, "[error] missing tid context information\n");
+	}
+	if (pid_check == 0) {
+		ret = -1;
+		fprintf(stderr, "[error] missing pid context information\n");
+	}
+	if (ppid_check == 0) {
+		ret = -1;
+		fprintf(stderr, "[error] missing ppid context information\n");
+	}
+	if (procname_check == 0) {
+		ret = -1;
+		fprintf(stderr, "[error] missing procname context information\n");
+	}
+
+end:
+	return ret;
+}
+
 int main(int argc, char **argv)
 {
 	int ret;
@@ -567,7 +667,13 @@ int main(int argc, char **argv)
 	bt_ctx = bt_context_create();
 	ret = bt_context_add_traces_recursive(bt_ctx, opt_input_path, "ctf", NULL);
 	if (ret < 0) {
-		printf("[error] Opening the trace\n");
+		fprintf(stderr, "[error] Opening the trace\n");
+		goto end;
+	}
+
+	ret = check_requirements(bt_ctx);
+	if (ret < 0) {
+		fprintf(stderr, "[error] missing mandatory context informations\n");
 		goto end;
 	}
 
