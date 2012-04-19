@@ -743,9 +743,13 @@ void update_current_view()
 	sem_post(&update_display_sem);
 }
 
-void setup_pref_panel()
+void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 {
+	int i;
+	struct perfcounter *perf;
+	GList *perflist;
 	int size;
+
 	if (!data)
 		return;
 	if (pref_panel_window) {
@@ -753,20 +757,11 @@ void setup_pref_panel()
 		delwin(pref_panel_window);
 	}
 	size = g_hash_table_size(global_perf_liszt);
+
 	pref_panel_window = create_window(size + 2, 30, 10, 10);
 	pref_panel = new_panel(pref_panel_window);
 	pref_panel_visible = 0;
 	hide_panel(pref_panel);
-}
-
-void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
-{
-	int i;
-	struct perfcounter *perf;
-	GList *perflist;
-
-	if (!data)
-		return;
 
 	werase(pref_panel_window);
 	box(pref_panel_window, 0 , 0);
@@ -817,25 +812,33 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	doupdate();
 }
 
-void update_preference_panel(int line_selected, int toggle_view, int toggle_sort)
+int update_preference_panel(int line_selected, int toggle_view, int toggle_sort)
 {
+	int ret = 0;
+
 	switch(current_view) {
 		case perf:
 			update_perf_panel(line_selected, toggle_view, toggle_sort);
 			break;
 		default:
+			ret = -1;
 			break;
 	}
+
+	return ret;
 }
 
 void toggle_pref_panel(void)
 {
+	int ret;
+
 	if (pref_panel_visible) {
 		hide_panel(pref_panel);
 		pref_panel_visible = 0;
 	} else {
-		setup_pref_panel();
-		update_preference_panel(perf_line_selected, 0, 0);
+		ret = update_preference_panel(perf_line_selected, 0, 0);
+		if (ret < 0)
+			return;
 		show_panel(pref_panel);
 		pref_panel_visible = 1;
 	}
@@ -1037,7 +1040,6 @@ void init_ncurses()
 	print_log("Starting display");
 
 	main_panel = new_panel(center);
-	setup_pref_panel();
 
 	current_view = cpu;
 
