@@ -38,10 +38,10 @@ sem_t update_display_sem;
 
 char *termtype;
 WINDOW *footer, *header, *center, *status;
-WINDOW *perf_panel_window = NULL;
-PANEL *perf_panel, *main_panel;
+WINDOW *pref_panel_window = NULL;
+PANEL *pref_panel, *main_panel;
 
-int perf_panel_visible = 0;
+int pref_panel_visible = 0;
 int perf_line_selected = 0;
 
 int last_display_index, currently_displayed_index;
@@ -574,7 +574,7 @@ void update_perf()
 	mvwprintw(center, 1, 22, "NAME");
 
 	perf_row = 40;
-	g_hash_table_iter_init(&iter, data->perf_list);
+	g_hash_table_iter_init(&iter, global_perf_liszt);
 	while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
 		if (perfn1->visible) {
 			/* + 5 to strip the "perf_" prefix */
@@ -609,7 +609,7 @@ void update_perf()
 		mvwprintw(center, current_line + header_offset, 11, "%d", tmp->tid);
 		mvwprintw(center, current_line + header_offset, 22, "%s", tmp->comm);
 
-		g_hash_table_iter_init(&iter, data->perf_list);
+		g_hash_table_iter_init(&iter, global_perf_liszt);
 
 		perf_row = 40;
 		while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
@@ -743,20 +743,20 @@ void update_current_view()
 	sem_post(&update_display_sem);
 }
 
-void setup_perf_panel()
+void setup_pref_panel()
 {
 	int size;
 	if (!data)
 		return;
-	if (perf_panel_window) {
-		del_panel(perf_panel);
-		delwin(perf_panel_window);
+	if (pref_panel_window) {
+		del_panel(pref_panel);
+		delwin(pref_panel_window);
 	}
-	size = g_hash_table_size(data->perf_list);
-	perf_panel_window = create_window(size + 2, 30, 10, 10);
-	perf_panel = new_panel(perf_panel_window);
-	perf_panel_visible = 0;
-	hide_panel(perf_panel);
+	size = g_hash_table_size(global_perf_liszt);
+	pref_panel_window = create_window(size + 2, 30, 10, 10);
+	pref_panel = new_panel(pref_panel_window);
+	pref_panel_visible = 0;
+	hide_panel(pref_panel);
 }
 
 void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
@@ -768,19 +768,19 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	if (!data)
 		return;
 
-	werase(perf_panel_window);
-	box(perf_panel_window, 0 , 0);
-	set_window_title(perf_panel_window, "Perf Preferences ");
-	wattron(perf_panel_window, A_BOLD);
-	mvwprintw(perf_panel_window, g_hash_table_size(data->perf_list) + 1, 1,
+	werase(pref_panel_window);
+	box(pref_panel_window, 0 , 0);
+	set_window_title(pref_panel_window, "Perf Preferences ");
+	wattron(pref_panel_window, A_BOLD);
+	mvwprintw(pref_panel_window, g_hash_table_size(global_perf_liszt) + 1, 1,
 			" 's' to sort");
-	wattroff(perf_panel_window, A_BOLD);
+	wattroff(pref_panel_window, A_BOLD);
 
 	if (toggle_sort == 1) {
 		i = 0;
-		perflist = g_list_first(g_hash_table_get_keys(data->perf_list));
+		perflist = g_list_first(g_hash_table_get_keys(global_perf_liszt));
 		while (perflist) {
-			perf = g_hash_table_lookup(data->perf_list, perflist->data);
+			perf = g_hash_table_lookup(global_perf_liszt, perflist->data);
 			if (i != line_selected)
 				perf->sort = 0;
 			else
@@ -792,24 +792,24 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	}
 
 	i = 0;
-	perflist = g_list_first(g_hash_table_get_keys(data->perf_list));
+	perflist = g_list_first(g_hash_table_get_keys(global_perf_liszt));
 	while (perflist) {
-		perf = g_hash_table_lookup(data->perf_list, perflist->data);
+		perf = g_hash_table_lookup(global_perf_liszt, perflist->data);
 		if (i == line_selected && toggle_view == 1) {
 			perf->visible = perf->visible == 1 ? 0:1;
 			update_current_view();
 		}
 		if (i == line_selected) {
-			wattron(perf_panel_window, COLOR_PAIR(5));
-			mvwhline(perf_panel_window, i + 1, 1, ' ', 30 - 2);
+			wattron(pref_panel_window, COLOR_PAIR(5));
+			mvwhline(pref_panel_window, i + 1, 1, ' ', 30 - 2);
 		}
 		if (perf->sort == 1)
-			wattron(perf_panel_window, A_BOLD);
-		mvwprintw(perf_panel_window, i + 1, 1, "[%c] %s",
+			wattron(pref_panel_window, A_BOLD);
+		mvwprintw(pref_panel_window, i + 1, 1, "[%c] %s",
 				perf->visible == 1 ? 'x' : ' ',
 				(char *) perflist->data + 5);
-		wattroff(perf_panel_window, A_BOLD);
-		wattroff(perf_panel_window, COLOR_PAIR(5));
+		wattroff(pref_panel_window, A_BOLD);
+		wattroff(pref_panel_window, COLOR_PAIR(5));
 		i++;
 		perflist = g_list_next(perflist);
 	}
@@ -817,16 +817,27 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	doupdate();
 }
 
-void toggle_perf_panel(void)
+void update_preference_panel(int line_selected, int toggle_view, int toggle_sort)
 {
-	if (perf_panel_visible) {
-		hide_panel(perf_panel);
-		perf_panel_visible = 0;
+	switch(current_view) {
+		case perf:
+			update_perf_panel(line_selected, toggle_view, toggle_sort);
+			break;
+		default:
+			break;
+	}
+}
+
+void toggle_pref_panel(void)
+{
+	if (pref_panel_visible) {
+		hide_panel(pref_panel);
+		pref_panel_visible = 0;
 	} else {
-		setup_perf_panel();
-		update_perf_panel(perf_line_selected, 0, 0);
-		show_panel(perf_panel);
-		perf_panel_visible = 1;
+		setup_pref_panel();
+		update_preference_panel(perf_line_selected, 0, 0);
+		show_panel(pref_panel);
+		pref_panel_visible = 1;
 	}
 	update_panels();
 	doupdate();
@@ -867,10 +878,10 @@ void *handle_keyboard(void *p)
 		switch(ch) {
 		/* Move the cursor and scroll */
 		case KEY_DOWN:
-			if (perf_panel_visible) {
-				if (perf_line_selected < g_hash_table_size(data->perf_list) - 1)
+			if (pref_panel_visible) {
+				if (perf_line_selected < g_hash_table_size(global_perf_liszt) - 1)
 					perf_line_selected++;
-				update_perf_panel(perf_line_selected, 0, 0);
+				update_preference_panel(perf_line_selected, 0, 0);
 			} else {
 				if (selected_line < (max_center_lines - 1) &&
 						selected_line < max_elements - 1) {
@@ -887,10 +898,10 @@ void *handle_keyboard(void *p)
 		case KEY_NPAGE:
 			break;
 		case KEY_UP:
-			if (perf_panel_visible) {
+			if (pref_panel_visible) {
 				if (perf_line_selected > 0)
 					perf_line_selected--;
-				update_perf_panel(perf_line_selected, 0, 0);
+				update_preference_panel(perf_line_selected, 0, 0);
 			} else {
 				if (selected_line > 0) {
 					selected_line--;
@@ -941,16 +952,16 @@ void *handle_keyboard(void *p)
 
 			break;
 		case ' ':
-			if (perf_panel_visible) {
-				update_perf_panel(perf_line_selected, 1, 0);
+			if (pref_panel_visible) {
+				update_preference_panel(perf_line_selected, 1, 0);
 			} else {
 				update_selected_processes();
 				update_current_view();
 			}
 			break;
 		case 's':
-			if (perf_panel_visible)
-				update_perf_panel(perf_line_selected, 0, 1);
+			if (pref_panel_visible)
+				update_preference_panel(perf_line_selected, 0, 1);
 			break;
 
 		case 13: /* FIXME : KEY_ENTER ?? */
@@ -1000,7 +1011,7 @@ void *handle_keyboard(void *p)
 			}
 			break;
 		case 'P':
-			toggle_perf_panel();
+			toggle_pref_panel();
 			break;
 		default:
 			if (data)
@@ -1026,7 +1037,7 @@ void init_ncurses()
 	print_log("Starting display");
 
 	main_panel = new_panel(center);
-	setup_perf_panel();
+	setup_pref_panel();
 
 	current_view = cpu;
 
@@ -1035,4 +1046,3 @@ void init_ncurses()
 
 	pthread_create(&keyboard_thread, NULL, handle_keyboard, (void *)NULL);
 }
-

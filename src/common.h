@@ -29,7 +29,7 @@
 sem_t goodtodisplay, goodtoupdate, timer, pause_sem, end_trace_sem, bootstrap;
 
 GPtrArray *copies; /* struct lttngtop */
-pthread_mutex_t perf_list_mutex;
+GHashTable *global_perf_liszt;
 
 struct lttngtop *data;
 

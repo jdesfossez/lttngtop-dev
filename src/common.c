@@ -360,11 +360,9 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	dst->process_table = g_ptr_array_new();
 	dst->files_table = g_ptr_array_new();
 	dst->cpu_table = g_ptr_array_new();
-	dst->perf_list = g_hash_table_new(g_str_hash, g_str_equal);
 
 	rotate_cputime(end);
 
-	g_hash_table_foreach(lttngtop.perf_list, copy_perf_counter, dst->perf_list);
 	for (i = 0; i < lttngtop.process_table->len; i++) {
 		tmp = g_ptr_array_index(lttngtop.process_table, i);
 		new = g_new0(struct processtop, 1);

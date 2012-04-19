@@ -24,7 +24,6 @@ struct lttngtop {
 	GPtrArray *process_table;	/* struct processtop */
 	GPtrArray *files_table;		/* struct files */
 	GPtrArray *cpu_table;		/* struct cputime */
-	GHashTable *perf_list;		/* struct perfcounter */
 	unsigned long start;
 	unsigned long end;
 	unsigned int nbproc;

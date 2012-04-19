@@ -165,14 +165,14 @@ struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 	ret->visible = 1;
 	g_hash_table_insert(table, (gpointer) strdup(name), ret);
 
-	global = g_hash_table_lookup(lttngtop.perf_list, (gpointer) name);
+	global = g_hash_table_lookup(global_perf_liszt, (gpointer) name);
 	if (!global) {
 		global = g_new0(struct perfcounter, 1);
 		memcpy(global, ret, sizeof(struct perfcounter));
 		/* by default, sort on the first perf context */
-		if (g_hash_table_size(lttngtop.perf_list) == 0)
+		if (g_hash_table_size(global_perf_liszt) == 0)
 			global->sort = 1;
-		g_hash_table_insert(lttngtop.perf_list, (gpointer) strdup(name), global);
+		g_hash_table_insert(global_perf_liszt, (gpointer) strdup(name), global);
 	}
 
 end:
@@ -307,7 +307,7 @@ error:
 void init_lttngtop()
 {
 	copies = g_ptr_array_new();
-	lttngtop.perf_list = g_hash_table_new(g_str_hash, g_str_equal);
+	global_perf_liszt = g_hash_table_new(g_str_hash, g_str_equal);
 
 	sem_init(&goodtodisplay, 0, 0);
 	sem_init(&goodtoupdate, 0, 1);
