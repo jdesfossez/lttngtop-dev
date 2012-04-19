@@ -418,6 +418,7 @@ void update_cputop_display()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
+		/* FIXME : random segfault here */
 		if (process_selected(tmp)) {
 			wattron(center, COLOR_PAIR(6));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
@@ -494,6 +495,7 @@ void update_process_details()
 	struct files *file_tmp;
 	int i, j = 0;
 	char unit[4];
+	char filename_buf[COLS];
 
 	set_window_title(center, "Process details");
 
@@ -535,7 +537,8 @@ void update_process_details()
 	mvwprintw(center, 8, 24, "FILENAME");
 	wattroff(center, A_BOLD);
 
-	for (i = 0; i < tmp->process_files_table->len; i++) {
+	for (i = selected_line; i < tmp->process_files_table->len &&
+			i < (selected_line + max_center_lines - 7); i++) {
 		file_tmp = get_file(tmp, i);
 		if (file_tmp != NULL) {
 			mvwprintw(center, 9 + j, 1, "%d", i);
@@ -543,7 +546,8 @@ void update_process_details()
 			mvwprintw(center, 9 + j, 10, "%s", unit);
 			scale_unit(file_tmp->write, unit);
 			mvwprintw(center, 9 + j, 17, "%s", unit);
-			mvwprintw(center, 9 + j, 24, "%s", file_tmp->name);
+			snprintf(filename_buf, COLS - 25, "%s", file_tmp->name);
+			mvwprintw(center, 9 + j, 24, "%s", filename_buf);
 			j++;
 		}
 	}
