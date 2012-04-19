@@ -172,4 +172,12 @@ struct file_info {
 	int status;
 };
 
+/* header for cputop display */
+struct cputopview {
+	char *title;
+	int visible;
+	int sort;
+	int reverse;
+};
+
 #endif /* LTTNGTOPTYPES_H */

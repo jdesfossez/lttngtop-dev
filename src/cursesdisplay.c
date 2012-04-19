@@ -42,7 +42,7 @@ WINDOW *pref_panel_window = NULL;
 PANEL *pref_panel, *main_panel;
 
 int pref_panel_visible = 0;
-int perf_line_selected = 0;
+int pref_line_selected = 0;
 
 int last_display_index, currently_displayed_index;
 
@@ -64,6 +64,8 @@ int max_center_lines;
 GPtrArray *selected_processes;
 
 pthread_t keyboard_thread;
+
+struct cputopview cputopview[4];
 
 void reset_ncurses()
 {
@@ -374,6 +376,34 @@ gint sort_by_cpu_desc(gconstpointer p1, gconstpointer p2)
 	return -1;
 }
 
+gint sort_by_tid_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct processtop *n1 = *(struct processtop **)p1;
+	struct processtop *n2 = *(struct processtop **)p2;
+	unsigned long totaln1 = n1->tid;
+	unsigned long totaln2 = n2->tid;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
+gint sort_by_pid_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct processtop *n1 = *(struct processtop **)p1;
+	struct processtop *n2 = *(struct processtop **)p2;
+	unsigned long totaln1 = n1->pid;
+	unsigned long totaln2 = n2->pid;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
 gint sort_by_cpu_group_by_threads_desc(gconstpointer p1, gconstpointer p2)
 {
 	struct processtop *n1 = *(struct processtop **)p1;
@@ -401,14 +431,23 @@ void update_cputop_display()
 	elapsed = data->end - data->start;
 	maxcputime = elapsed * data->cpu_table->len / 100.0;
 
-	g_ptr_array_sort(data->process_table, sort_by_cpu_desc);
+	if (cputopview[0].sort == 1)
+		g_ptr_array_sort(data->process_table, sort_by_cpu_desc);
+	else if (cputopview[1].sort == 1)
+		g_ptr_array_sort(data->process_table, sort_by_pid_desc);
+	else if (cputopview[2].sort == 1)
+		g_ptr_array_sort(data->process_table, sort_by_tid_desc);
+	else if (cputopview[3].sort == 1)
+		g_ptr_array_sort(data->process_table, sort_by_cpu_desc);
+	else
+		g_ptr_array_sort(data->process_table, sort_by_cpu_desc);
 
 	set_window_title(center, "CPU Top");
 	wattron(center, A_BOLD);
-	mvwprintw(center, 1, 1, "CPU(%)");
-	mvwprintw(center, 1, 12, "TGID");
-	mvwprintw(center, 1, 22, "PID");
-	mvwprintw(center, 1, 32, "NAME");
+	mvwprintw(center, 1, 1, cputopview[0].title);
+	mvwprintw(center, 1, 12, cputopview[1].title);
+	mvwprintw(center, 1, 22, cputopview[2].title);
+	mvwprintw(center, 1, 32, cputopview[3].title);
 	wattroff(center, A_BOLD);
 
 	max_center_lines = LINES - 5 - 7 - 1 - header_offset;
@@ -743,7 +782,62 @@ void update_current_view()
 	sem_post(&update_display_sem);
 }
 
-void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
+void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
+{
+	int i;
+	int size;
+
+	if (!data)
+		return;
+	if (pref_panel_window) {
+		del_panel(pref_panel);
+		delwin(pref_panel_window);
+	}
+	size = 4;
+
+	pref_panel_window = create_window(size + 2, 30, 10, 10);
+	pref_panel = new_panel(pref_panel_window);
+
+	werase(pref_panel_window);
+	box(pref_panel_window, 0 , 0);
+	set_window_title(pref_panel_window, "CPUTop Preferences ");
+	wattron(pref_panel_window, A_BOLD);
+	mvwprintw(pref_panel_window, size + 1, 1,
+			" 's' to sort");
+	wattroff(pref_panel_window, A_BOLD);
+
+	if (*line_selected > 3)
+		*line_selected = 3;
+	if (toggle_sort == 1) {
+		/* special case, we don't support sorting by procname for now */
+		if (*line_selected != 3) {
+			if (cputopview[*line_selected].sort == 1)
+				cputopview[*line_selected].reverse = 1;
+			for (i = 0; i < 4; i++)
+				cputopview[i].sort = 0;
+			cputopview[*line_selected].sort = 1;
+			update_current_view();
+		}
+	}
+
+	for (i = 0; i < 4; i++) {
+		if (i == *line_selected) {
+			wattron(pref_panel_window, COLOR_PAIR(5));
+			mvwhline(pref_panel_window, i + 1, 1, ' ', 30 - 2);
+		}
+		if (cputopview[i].sort == 1)
+			wattron(pref_panel_window, A_BOLD);
+		mvwprintw(pref_panel_window, i + 1, 1, "[x] %s",
+				cputopview[i].title);
+		wattroff(pref_panel_window, A_BOLD);
+		wattroff(pref_panel_window, COLOR_PAIR(5));
+
+	}
+	update_panels();
+	doupdate();
+}
+
+void update_perf_pref(int *line_selected, int toggle_view, int toggle_sort)
 {
 	int i;
 	struct perfcounter *perf;
@@ -760,8 +854,6 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 
 	pref_panel_window = create_window(size + 2, 30, 10, 10);
 	pref_panel = new_panel(pref_panel_window);
-	pref_panel_visible = 0;
-	hide_panel(pref_panel);
 
 	werase(pref_panel_window);
 	box(pref_panel_window, 0 , 0);
@@ -776,7 +868,7 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 		perflist = g_list_first(g_hash_table_get_keys(global_perf_liszt));
 		while (perflist) {
 			perf = g_hash_table_lookup(global_perf_liszt, perflist->data);
-			if (i != line_selected)
+			if (i != *line_selected)
 				perf->sort = 0;
 			else
 				perf->sort = 1;
@@ -790,11 +882,11 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	perflist = g_list_first(g_hash_table_get_keys(global_perf_liszt));
 	while (perflist) {
 		perf = g_hash_table_lookup(global_perf_liszt, perflist->data);
-		if (i == line_selected && toggle_view == 1) {
+		if (i == *line_selected && toggle_view == 1) {
 			perf->visible = perf->visible == 1 ? 0:1;
 			update_current_view();
 		}
-		if (i == line_selected) {
+		if (i == *line_selected) {
 			wattron(pref_panel_window, COLOR_PAIR(5));
 			mvwhline(pref_panel_window, i + 1, 1, ' ', 30 - 2);
 		}
@@ -812,13 +904,16 @@ void update_perf_panel(int line_selected, int toggle_view, int toggle_sort)
 	doupdate();
 }
 
-int update_preference_panel(int line_selected, int toggle_view, int toggle_sort)
+int update_preference_panel(int *line_selected, int toggle_view, int toggle_sort)
 {
 	int ret = 0;
 
 	switch(current_view) {
 		case perf:
-			update_perf_panel(line_selected, toggle_view, toggle_sort);
+			update_perf_pref(line_selected, toggle_view, toggle_sort);
+			break;
+		case cpu:
+			update_cpu_pref(line_selected, toggle_view, toggle_sort);
 			break;
 		default:
 			ret = -1;
@@ -836,7 +931,7 @@ void toggle_pref_panel(void)
 		hide_panel(pref_panel);
 		pref_panel_visible = 0;
 	} else {
-		ret = update_preference_panel(perf_line_selected, 0, 0);
+		ret = update_preference_panel(&pref_line_selected, 0, 0);
 		if (ret < 0)
 			return;
 		show_panel(pref_panel);
@@ -882,9 +977,8 @@ void *handle_keyboard(void *p)
 		/* Move the cursor and scroll */
 		case KEY_DOWN:
 			if (pref_panel_visible) {
-				if (perf_line_selected < g_hash_table_size(global_perf_liszt) - 1)
-					perf_line_selected++;
-				update_preference_panel(perf_line_selected, 0, 0);
+				pref_line_selected++;
+				update_preference_panel(&pref_line_selected, 0, 0);
 			} else {
 				if (selected_line < (max_center_lines - 1) &&
 						selected_line < max_elements - 1) {
@@ -902,9 +996,9 @@ void *handle_keyboard(void *p)
 			break;
 		case KEY_UP:
 			if (pref_panel_visible) {
-				if (perf_line_selected > 0)
-					perf_line_selected--;
-				update_preference_panel(perf_line_selected, 0, 0);
+				if (pref_line_selected > 0)
+					pref_line_selected--;
+				update_preference_panel(&pref_line_selected, 0, 0);
 			} else {
 				if (selected_line > 0) {
 					selected_line--;
@@ -956,7 +1050,7 @@ void *handle_keyboard(void *p)
 			break;
 		case ' ':
 			if (pref_panel_visible) {
-				update_preference_panel(perf_line_selected, 1, 0);
+				update_preference_panel(&pref_line_selected, 1, 0);
 			} else {
 				update_selected_processes();
 				update_current_view();
@@ -964,7 +1058,7 @@ void *handle_keyboard(void *p)
 			break;
 		case 's':
 			if (pref_panel_visible)
-				update_preference_panel(perf_line_selected, 0, 1);
+				update_preference_panel(&pref_line_selected, 0, 1);
 			break;
 
 		case 13: /* FIXME : KEY_ENTER ?? */
@@ -979,21 +1073,29 @@ void *handle_keyboard(void *p)
 			break;
 
 		case KEY_F(1):
+			if (pref_panel_visible)
+				toggle_pref_panel();
 			current_view = cpu;
 			selected_line = 0;
 			update_current_view();
 			break;
 		case KEY_F(2):
+			if (pref_panel_visible)
+				toggle_pref_panel();
 			current_view = cpu;
 			selected_line = 0;
 			update_current_view();
 			break;
 		case KEY_F(3):
+			if (pref_panel_visible)
+				toggle_pref_panel();
 			current_view = perf;
 			selected_line = 0;
 			update_current_view();
 			break;
 		case KEY_F(4):
+			if (pref_panel_visible)
+				toggle_pref_panel();
 			current_view = iostream;
 			selected_line = 0;
 			update_current_view();
@@ -1037,6 +1139,11 @@ void init_ncurses()
 	status = create_window(MAX_LOG_LINES + 2, COLS - 1, LINES - 7, 0);
 	footer = create_window(1, COLS - 1, LINES - 1, 0);
 
+	cputopview[0].title = strdup("CPU(%)");
+	cputopview[0].sort = 1;
+	cputopview[1].title = strdup("TGID");
+	cputopview[2].title = strdup("PID");
+	cputopview[3].title = strdup("NAME");
 	print_log("Starting display");
 
 	main_panel = new_panel(center);
