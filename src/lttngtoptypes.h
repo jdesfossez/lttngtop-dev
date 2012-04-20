@@ -173,7 +173,7 @@ struct file_info {
 };
 
 /* header for cputop display */
-struct cputopview {
+struct header_view {
 	char *title;
 	int visible;
 	int sort;

@@ -65,7 +65,8 @@ GPtrArray *selected_processes;
 
 pthread_t keyboard_thread;
 
-struct cputopview cputopview[4];
+struct header_view cputopview[4];
+struct header_view iostreamtopview[3];
 
 void reset_ncurses()
 {
@@ -404,6 +405,48 @@ gint sort_by_pid_desc(gconstpointer p1, gconstpointer p2)
 	return -1;
 }
 
+gint sort_by_process_read_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct processtop *n1 = *(struct processtop **)p1;
+	struct processtop *n2 = *(struct processtop **)p2;
+	unsigned long totaln1 = n1->fileread;
+	unsigned long totaln2 = n2->fileread;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
+gint sort_by_process_write_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct processtop *n1 = *(struct processtop **)p1;
+	struct processtop *n2 = *(struct processtop **)p2;
+	unsigned long totaln1 = n1->filewrite;
+	unsigned long totaln2 = n2->filewrite;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
+gint sort_by_process_total_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct processtop *n1 = *(struct processtop **)p1;
+	struct processtop *n2 = *(struct processtop **)p2;
+	unsigned long totaln1 = n1->filewrite + n1->fileread;
+	unsigned long totaln2 = n2->filewrite + n2->fileread;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
 gint sort_by_cpu_group_by_threads_desc(gconstpointer p1, gconstpointer p2)
 {
 	struct processtop *n1 = *(struct processtop **)p1;
@@ -671,21 +714,6 @@ void update_perf()
 	}
 }
 
-gint sort_by_ret_desc(gconstpointer p1, gconstpointer p2)
-{
-	struct processtop *n1 = *(struct processtop **)p1;
-	struct processtop *n2 = *(struct processtop **)p2;
-
-	unsigned long totaln1 = n1->totalfileread + n1->totalfilewrite;
-	unsigned long totaln2 = n2->totalfileread + n2->totalfilewrite;
-
-	if (totaln1 < totaln2)
-		return 1;
-	if (totaln1 == totaln2)
-		return 0;
-	return -1;
-}
-
 void update_iostream()
 {
 	int i;
@@ -706,7 +734,14 @@ void update_iostream()
 	mvwprintw(center, 1, 64, "Total");
 	wattroff(center, A_BOLD);
 
-	g_ptr_array_sort(data->process_table, sort_by_ret_desc);
+	if (iostreamtopview[0].sort == 1)
+		g_ptr_array_sort(data->process_table, sort_by_process_read_desc);
+	else if (iostreamtopview[1].sort == 1)
+		g_ptr_array_sort(data->process_table, sort_by_process_write_desc);
+	else if (iostreamtopview[2].sort == 1)
+		g_ptr_array_sort(data->process_table, sort_by_process_total_desc);
+	else
+		g_ptr_array_sort(data->process_table, sort_by_process_total_desc);
 
 	for (i = list_offset; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
@@ -782,6 +817,58 @@ void update_current_view()
 	sem_post(&update_display_sem);
 }
 
+void update_iostream_pref(int *line_selected, int toggle_view, int toggle_sort)
+{
+	int i;
+	int size;
+
+	if (!data)
+		return;
+	if (pref_panel_window) {
+		del_panel(pref_panel);
+		delwin(pref_panel_window);
+	}
+	size = 3;
+
+	pref_panel_window = create_window(size + 2, 30, 10, 10);
+	pref_panel = new_panel(pref_panel_window);
+
+	werase(pref_panel_window);
+	box(pref_panel_window, 0 , 0);
+	set_window_title(pref_panel_window, "IOTop Preferences ");
+	wattron(pref_panel_window, A_BOLD);
+	mvwprintw(pref_panel_window, size + 1, 1,
+			" 's' to sort");
+	wattroff(pref_panel_window, A_BOLD);
+
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	if (toggle_sort == 1) {
+		if (iostreamtopview[*line_selected].sort == 1)
+			iostreamtopview[*line_selected].reverse = 1;
+		for (i = 0; i < size; i++)
+			iostreamtopview[i].sort = 0;
+		iostreamtopview[*line_selected].sort = 1;
+		update_current_view();
+	}
+
+	for (i = 0; i < size; i++) {
+		if (i == *line_selected) {
+			wattron(pref_panel_window, COLOR_PAIR(5));
+			mvwhline(pref_panel_window, i + 1, 1, ' ', 30 - 2);
+		}
+		if (iostreamtopview[i].sort == 1)
+			wattron(pref_panel_window, A_BOLD);
+		mvwprintw(pref_panel_window, i + 1, 1, "[x] %s",
+				iostreamtopview[i].title);
+		wattroff(pref_panel_window, A_BOLD);
+		wattroff(pref_panel_window, COLOR_PAIR(5));
+
+	}
+	update_panels();
+	doupdate();
+}
+
 void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
 {
 	int i;
@@ -806,21 +893,21 @@ void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
 			" 's' to sort");
 	wattroff(pref_panel_window, A_BOLD);
 
-	if (*line_selected > 3)
-		*line_selected = 3;
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
 	if (toggle_sort == 1) {
 		/* special case, we don't support sorting by procname for now */
 		if (*line_selected != 3) {
 			if (cputopview[*line_selected].sort == 1)
 				cputopview[*line_selected].reverse = 1;
-			for (i = 0; i < 4; i++)
+			for (i = 0; i < size; i++)
 				cputopview[i].sort = 0;
 			cputopview[*line_selected].sort = 1;
 			update_current_view();
 		}
 	}
 
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < size; i++) {
 		if (i == *line_selected) {
 			wattron(pref_panel_window, COLOR_PAIR(5));
 			mvwhline(pref_panel_window, i + 1, 1, ' ', 30 - 2);
@@ -914,6 +1001,9 @@ int update_preference_panel(int *line_selected, int toggle_view, int toggle_sort
 			break;
 		case cpu:
 			update_cpu_pref(line_selected, toggle_view, toggle_sort);
+			break;
+		case iostream:
+			update_iostream_pref(line_selected, toggle_view, toggle_sort);
 			break;
 		default:
 			ret = -1;
@@ -1128,10 +1218,25 @@ void *handle_keyboard(void *p)
 	return NULL;
 }
 
+void init_view_headers()
+{
+	cputopview[0].title = strdup("CPU(%)");
+	cputopview[0].sort = 1;
+	cputopview[1].title = strdup("TGID");
+	cputopview[2].title = strdup("PID");
+	cputopview[3].title = strdup("NAME");
+
+	iostreamtopview[0].title = strdup("R (B/sec)");
+	iostreamtopview[1].title = strdup("W (B/sec)");
+	iostreamtopview[2].title = strdup("Total (B)");
+	iostreamtopview[2].sort = 1;
+}
+
 void init_ncurses()
 {
 	selected_processes = g_ptr_array_new();
 	sem_init(&update_display_sem, 0, 1);
+	init_view_headers();
 	init_screen();
 
 	header = create_window(5, COLS - 1, 0, 0);
@@ -1139,11 +1244,6 @@ void init_ncurses()
 	status = create_window(MAX_LOG_LINES + 2, COLS - 1, LINES - 7, 0);
 	footer = create_window(1, COLS - 1, LINES - 1, 0);
 
-	cputopview[0].title = strdup("CPU(%)");
-	cputopview[0].sort = 1;
-	cputopview[1].title = strdup("TGID");
-	cputopview[2].title = strdup("PID");
-	cputopview[3].title = strdup("NAME");
 	print_log("Starting display");
 
 	main_panel = new_panel(center);
