@@ -671,7 +671,7 @@ int main(int argc, char **argv)
 
 	ret = check_requirements(bt_ctx);
 	if (ret < 0) {
-		fprintf(stderr, "[error] missing mandatory context informations\n");
+		fprintf(stderr, "[error] some mandatory contexts were missing, exiting.\n");
 		goto end;
 	}
 
