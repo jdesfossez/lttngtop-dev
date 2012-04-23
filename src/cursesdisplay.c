@@ -269,8 +269,8 @@ void update_footer()
 	print_key(footer, "F4", "IOTop  ", current_view == iostream);
 	print_key(footer, "Enter", "Details  ", current_view == process_details);
 	print_key(footer, "Space", "Highlight  ", 0);
-	print_key(footer, "q", "Quit | ", 0);
-	print_key(footer, "P", "Perf Pref  ", 0);
+	print_key(footer, "q", "Quit ", 0);
+	print_key(footer, "P", "Pref  ", 0);
 	print_key(footer, "p", "Pause  ", toggle_pause);
 
 	wrefresh(footer);
@@ -934,7 +934,7 @@ void update_process_detail_pref(int *line_selected, int toggle_view, int toggle_
 		}
 		if (fileview[i].sort == 1)
 			wattron(pref_panel_window, A_BOLD);
-		mvwprintw(pref_panel_window, i + 1, 1, "[x] %s",
+		mvwprintw(pref_panel_window, i + 1, 1, "[-] %s",
 				fileview[i].title);
 		wattroff(pref_panel_window, A_BOLD);
 		wattroff(pref_panel_window, COLOR_PAIR(5));
@@ -986,7 +986,7 @@ void update_iostream_pref(int *line_selected, int toggle_view, int toggle_sort)
 		}
 		if (iostreamtopview[i].sort == 1)
 			wattron(pref_panel_window, A_BOLD);
-		mvwprintw(pref_panel_window, i + 1, 1, "[x] %s",
+		mvwprintw(pref_panel_window, i + 1, 1, "[-] %s",
 				iostreamtopview[i].title);
 		wattroff(pref_panel_window, A_BOLD);
 		wattroff(pref_panel_window, COLOR_PAIR(5));
@@ -1041,7 +1041,7 @@ void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
 		}
 		if (cputopview[i].sort == 1)
 			wattron(pref_panel_window, A_BOLD);
-		mvwprintw(pref_panel_window, i + 1, 1, "[x] %s",
+		mvwprintw(pref_panel_window, i + 1, 1, "[-] %s",
 				cputopview[i].title);
 		wattroff(pref_panel_window, A_BOLD);
 		wattroff(pref_panel_window, COLOR_PAIR(5));
