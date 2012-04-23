@@ -913,7 +913,7 @@ void update_process_detail_pref(int *line_selected, int toggle_view, int toggle_
 	set_window_title(pref_panel_window, "Process Detail Preferences ");
 	wattron(pref_panel_window, A_BOLD);
 	mvwprintw(pref_panel_window, size + 1, 1,
-			" 's' to sort");
+			" 's' : sort, space : toggle");
 	wattroff(pref_panel_window, A_BOLD);
 
 	if (*line_selected > (size - 1))
@@ -965,7 +965,7 @@ void update_iostream_pref(int *line_selected, int toggle_view, int toggle_sort)
 	set_window_title(pref_panel_window, "IOTop Preferences ");
 	wattron(pref_panel_window, A_BOLD);
 	mvwprintw(pref_panel_window, size + 1, 1,
-			" 's' to sort");
+			" 's' : sort, space : toggle");
 	wattroff(pref_panel_window, A_BOLD);
 
 	if (*line_selected > (size - 1))
@@ -1017,7 +1017,7 @@ void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
 	set_window_title(pref_panel_window, "CPUTop Preferences ");
 	wattron(pref_panel_window, A_BOLD);
 	mvwprintw(pref_panel_window, size + 1, 1,
-			" 's' to sort");
+			" 's' : sort, space : toggle");
 	wattroff(pref_panel_window, A_BOLD);
 
 	if (*line_selected > (size - 1))
@@ -1074,7 +1074,7 @@ void update_perf_pref(int *line_selected, int toggle_view, int toggle_sort)
 	set_window_title(pref_panel_window, "Perf Preferences ");
 	wattron(pref_panel_window, A_BOLD);
 	mvwprintw(pref_panel_window, g_hash_table_size(global_perf_liszt) + 1, 1,
-			" 's' to sort");
+			" 's' : sort, space : toggle");
 	wattroff(pref_panel_window, A_BOLD);
 
 	if (toggle_sort == 1) {
@@ -1284,6 +1284,8 @@ void *handle_keyboard(void *p)
 			break;
 
 		case 13: /* FIXME : KEY_ENTER ?? */
+			if (pref_panel_visible)
+				break;
 			if (current_view != process_details) {
 				previous_view = current_view;
 				current_view = process_details;
@@ -1339,6 +1341,16 @@ void *handle_keyboard(void *p)
 			break;
 		case 'P':
 			toggle_pref_panel();
+			break;
+		/* ESCAPE, but slow to process, don't know why */
+		case 27:
+			if (pref_panel_visible)
+				toggle_pref_panel();
+			else if (current_view == process_details) {
+				current_view = previous_view;
+				previous_view = process_details;
+			}
+			update_current_view();
 			break;
 		default:
 			if (data)
