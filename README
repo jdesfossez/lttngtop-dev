@@ -1,5 +1,5 @@
 LTTngTop
-Julien Desfossez <julien.desfossez@polymtl.ca>
+Julien Desfossez <julien.desfossez@efficios.com>
 April 2012
 
 Lttngtop is an ncurses interface for reading and browsing traces recorded by
@@ -11,31 +11,8 @@ version is in alpha and will be available for testing soon.
 USAGE
 -----
 
-Record a trace with LTTng 2.0 with at least the sched_switch event, and the pid,
-procname, tid, ppid contexts. To have the perftop view working you can enable
-any number of perf contexts (depending on your hardware).
-For the iotop view, you need to have some syscall events : sys_read, sys_write
-and exit_syscall.
-
-Once your trace is recorded, you can use lttngtop this way :
-$ lttngtop /path/to/your/trace
-
-Make sure you have read permissions on the whole directory.
-
-EXAMPLE
--------
-# Get root (or ideally just launch lttng-sessiond as root)
-lttng create lttngtop
-lttng enable-event -k sched_switch
-lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses \
-	-t perf:major-faults -t perf:branch-load-misses
-lttng start
-#...do stuff...
-lttng stop
-lttng destroy
-
-# Run lttngtop
-lttngtop $HOME/lttng-traces/lttngtop-...
+The manpage located in the doc folder of this source tree documents the usage
+of LTTngTop.
 
 BUILDING
 --------
