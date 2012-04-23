@@ -67,6 +67,7 @@ pthread_t keyboard_thread;
 
 struct header_view cputopview[4];
 struct header_view iostreamtopview[3];
+struct header_view fileview[3];
 
 void reset_ncurses()
 {
@@ -226,6 +227,8 @@ int process_selected(struct processtop *process)
 
 	for (i = 0; i < selected_processes->len; i++) {
 		stored_process = g_ptr_array_index(selected_processes, i);
+		if (!stored_process)
+			return 0;
 		if (stored_process->tid == process->tid)
 			return 1;
 	}
@@ -447,6 +450,57 @@ gint sort_by_process_total_desc(gconstpointer p1, gconstpointer p2)
 	return -1;
 }
 
+gint sort_by_file_read_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct files *n1 = *(struct files **)p1;
+	struct files *n2 = *(struct files **)p2;
+	unsigned long totaln1;
+	unsigned long totaln2;
+
+	totaln1 = n1->read;
+	totaln2 = n2->read;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
+gint sort_by_file_write_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct files *n1 = *(struct files **)p1;
+	struct files *n2 = *(struct files **)p2;
+	unsigned long totaln1;
+	unsigned long totaln2;
+
+	totaln1 = n1->write;
+	totaln2 = n2->write;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
+gint sort_by_file_fd_desc(gconstpointer p1, gconstpointer p2)
+{
+	struct files *n1 = *(struct files **)p1;
+	struct files *n2 = *(struct files **)p2;
+	unsigned long totaln1;
+	unsigned long totaln2;
+
+	totaln1 = n1->fd;
+	totaln2 = n2->fd;
+
+	if (totaln1 < totaln2)
+		return 1;
+	if (totaln1 == totaln2)
+		return 0;
+	return -1;
+}
+
 gint sort_by_cpu_group_by_threads_desc(gconstpointer p1, gconstpointer p2)
 {
 	struct processtop *n1 = *(struct processtop **)p1;
@@ -500,7 +554,6 @@ void update_cputop_display()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
-		/* FIXME : random segfault here */
 		if (process_selected(tmp)) {
 			wattron(center, COLOR_PAIR(6));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
@@ -578,6 +631,7 @@ void update_process_details()
 	int i, j = 0;
 	char unit[4];
 	char filename_buf[COLS];
+	GPtrArray *newfilearray = g_ptr_array_new();
 
 	set_window_title(center, "Process details");
 
@@ -619,20 +673,41 @@ void update_process_details()
 	mvwprintw(center, 8, 24, "FILENAME");
 	wattroff(center, A_BOLD);
 
-	for (i = selected_line; i < tmp->process_files_table->len &&
-			i < (selected_line + max_center_lines - 7); i++) {
-		file_tmp = get_file(tmp, i);
-		if (file_tmp != NULL) {
-			mvwprintw(center, 9 + j, 1, "%d", i);
-			scale_unit(file_tmp->read, unit);
-			mvwprintw(center, 9 + j, 10, "%s", unit);
-			scale_unit(file_tmp->write, unit);
-			mvwprintw(center, 9 + j, 17, "%s", unit);
-			snprintf(filename_buf, COLS - 25, "%s", file_tmp->name);
-			mvwprintw(center, 9 + j, 24, "%s", filename_buf);
-			j++;
-		}
+	/*
+	 * since the process_files_table array could contain NULL file structures,
+	 * and that the positions inside the array is important (it is the FD), we
+	 * need to create a temporary array that we can sort.
+	 */
+	for (i = 0; i < tmp->process_files_table->len; i++) {
+		file_tmp = g_ptr_array_index(tmp->process_files_table, i);
+		if (file_tmp)
+			g_ptr_array_add(newfilearray, file_tmp);
 	}
+
+	if (fileview[0].sort == 1)
+		g_ptr_array_sort(newfilearray, sort_by_file_fd_desc);
+	else if (fileview[1].sort == 1)
+		g_ptr_array_sort(newfilearray, sort_by_file_read_desc);
+	else if (fileview[2].sort == 1)
+		g_ptr_array_sort(newfilearray, sort_by_file_write_desc);
+	else
+		g_ptr_array_sort(newfilearray, sort_by_file_read_desc);
+
+	for (i = selected_line; i < newfilearray->len &&
+			i < (selected_line + max_center_lines - 7); i++) {
+		file_tmp = g_ptr_array_index(newfilearray, i);
+		if (!file_tmp)
+			continue;
+		mvwprintw(center, 9 + j, 1, "%d", file_tmp->fd);
+		scale_unit(file_tmp->read, unit);
+		mvwprintw(center, 9 + j, 10, "%s", unit);
+		scale_unit(file_tmp->write, unit);
+		mvwprintw(center, 9 + j, 17, "%s", unit);
+		snprintf(filename_buf, COLS - 25, "%s", file_tmp->name);
+		mvwprintw(center, 9 + j, 24, "%s", filename_buf);
+		j++;
+	}
+	g_ptr_array_free(newfilearray, TRUE);
 }
 
 void update_perf()
@@ -815,6 +890,58 @@ void update_current_view()
 	update_panels();
 	doupdate();
 	sem_post(&update_display_sem);
+}
+
+void update_process_detail_pref(int *line_selected, int toggle_view, int toggle_sort)
+{
+	int i;
+	int size;
+
+	if (!data)
+		return;
+	if (pref_panel_window) {
+		del_panel(pref_panel);
+		delwin(pref_panel_window);
+	}
+	size = 3;
+
+	pref_panel_window = create_window(size + 2, 30, 10, 10);
+	pref_panel = new_panel(pref_panel_window);
+
+	werase(pref_panel_window);
+	box(pref_panel_window, 0 , 0);
+	set_window_title(pref_panel_window, "Process Detail Preferences ");
+	wattron(pref_panel_window, A_BOLD);
+	mvwprintw(pref_panel_window, size + 1, 1,
+			" 's' to sort");
+	wattroff(pref_panel_window, A_BOLD);
+
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	if (toggle_sort == 1) {
+		if (fileview[*line_selected].sort == 1)
+			fileview[*line_selected].reverse = 1;
+		for (i = 0; i < size; i++)
+			fileview[i].sort = 0;
+		fileview[*line_selected].sort = 1;
+		update_current_view();
+	}
+
+	for (i = 0; i < size; i++) {
+		if (i == *line_selected) {
+			wattron(pref_panel_window, COLOR_PAIR(5));
+			mvwhline(pref_panel_window, i + 1, 1, ' ', 30 - 2);
+		}
+		if (fileview[i].sort == 1)
+			wattron(pref_panel_window, A_BOLD);
+		mvwprintw(pref_panel_window, i + 1, 1, "[x] %s",
+				fileview[i].title);
+		wattroff(pref_panel_window, A_BOLD);
+		wattroff(pref_panel_window, COLOR_PAIR(5));
+
+	}
+	update_panels();
+	doupdate();
 }
 
 void update_iostream_pref(int *line_selected, int toggle_view, int toggle_sort)
@@ -1004,6 +1131,9 @@ int update_preference_panel(int *line_selected, int toggle_view, int toggle_sort
 			break;
 		case iostream:
 			update_iostream_pref(line_selected, toggle_view, toggle_sort);
+			break;
+		case process_details:
+			update_process_detail_pref(line_selected, toggle_view, toggle_sort);
 			break;
 		default:
 			ret = -1;
@@ -1230,6 +1360,11 @@ void init_view_headers()
 	iostreamtopview[1].title = strdup("W (B/sec)");
 	iostreamtopview[2].title = strdup("Total (B)");
 	iostreamtopview[2].sort = 1;
+
+	fileview[0].title = strdup("FD");
+	fileview[1].title = strdup("READ");
+	fileview[1].sort = 1;
+	fileview[2].title = strdup("WRITE");
 }
 
 void init_ncurses()

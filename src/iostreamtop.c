@@ -31,13 +31,17 @@ void add_file(struct processtop *proc, struct files *file, int fd)
 	struct files *tmp_file;
 	struct processtop *parent;
 	int size;
+	int i;
 
 	size = proc->process_files_table->len;
 	parent = proc->threadparent;
 	if (parent)
 		insert_file(parent, fd);
 	if (size <= fd) {
-		g_ptr_array_set_size(proc->process_files_table, fd);
+		/* Add NULL file structures for undefined FDs */
+		for (i = size; i < fd; i++) {
+			g_ptr_array_add(proc->process_files_table, NULL);
+		}
 		g_ptr_array_add(proc->process_files_table, file);
 	} else {
 		tmp_file = g_ptr_array_index(proc->process_files_table, fd);
