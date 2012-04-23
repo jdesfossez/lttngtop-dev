@@ -1195,6 +1195,7 @@ void *handle_keyboard(void *p)
 	while((ch = getch())) {
 		switch(ch) {
 		/* Move the cursor and scroll */
+		case 'j':
 		case KEY_DOWN:
 			if (pref_panel_visible) {
 				pref_line_selected++;
@@ -1214,6 +1215,7 @@ void *handle_keyboard(void *p)
 			break;
 		case KEY_NPAGE:
 			break;
+		case 'k':
 		case KEY_UP:
 			if (pref_panel_visible) {
 				if (pref_line_selected > 0)
