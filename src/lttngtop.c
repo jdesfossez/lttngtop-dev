@@ -88,6 +88,10 @@ void *ncurses_display(void *p)
 	unsigned int current_display_index = 0;
 
 	sem_wait(&bootstrap);
+	/*
+	 * Prevent the 1 second delay when we hit ESC
+	 */
+	ESCDELAY = 0;
 	init_ncurses();
 
 	while (1) {
