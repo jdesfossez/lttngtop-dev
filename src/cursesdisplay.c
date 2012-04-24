@@ -1264,9 +1264,11 @@ void *handle_keyboard(void *p)
 			} else {
 				print_log("Manually moving forward");
 				sem_post(&timer);
-				/* we force to resume the refresh when moving forward */
-				if (toggle_pause > 0)
-					resume_display();
+				if (toggle_pause > 0) {
+					sem_post(&pause_sem);
+					update_current_view();
+					sem_wait(&pause_sem);
+				}
 			}
 
 			break;
