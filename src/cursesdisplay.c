@@ -524,6 +524,7 @@ void update_cputop_display()
 	double maxcputime;
 	int nblinedisplayed = 0;
 	int current_line = 0;
+	int column;
 
 	elapsed = data->end - data->start;
 	maxcputime = elapsed * data->cpu_table->len / 100.0;
@@ -541,10 +542,14 @@ void update_cputop_display()
 
 	set_window_title(center, "CPU Top");
 	wattron(center, A_BOLD);
-	mvwprintw(center, 1, 1, cputopview[0].title);
-	mvwprintw(center, 1, 12, cputopview[1].title);
-	mvwprintw(center, 1, 22, cputopview[2].title);
-	mvwprintw(center, 1, 32, cputopview[3].title);
+	column = 1;
+	for (i = 0; i < 4; i++) {
+		if (cputopview[i].sort)
+			wattron(center, A_UNDERLINE);
+		mvwprintw(center, 1, column, cputopview[i].title);
+		wattroff(center, A_UNDERLINE);
+		column += 10;
+	}
 	wattroff(center, A_BOLD);
 
 	max_center_lines = LINES - 5 - 7 - 1 - header_offset;
@@ -567,11 +572,11 @@ void update_cputop_display()
 		mvwprintw(center, current_line + header_offset, 1, "%1.2f",
 				tmp->totalcpunsec / maxcputime);
 		/* TGID */
-		mvwprintw(center, current_line + header_offset, 12, "%d", tmp->pid);
+		mvwprintw(center, current_line + header_offset, 11, "%d", tmp->pid);
 		/* PID */
-		mvwprintw(center, current_line + header_offset, 22, "%d", tmp->tid);
+		mvwprintw(center, current_line + header_offset, 21, "%d", tmp->tid);
 		/* NAME */
-		mvwprintw(center, current_line + header_offset, 32, "%s", tmp->comm);
+		mvwprintw(center, current_line + header_offset, 31, "%s", tmp->comm);
 		wattroff(center, COLOR_PAIR(6));
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
