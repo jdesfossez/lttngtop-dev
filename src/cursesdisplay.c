@@ -237,11 +237,21 @@ int process_selected(struct processtop *process)
 
 void update_selected_processes()
 {
+	int i;
+	struct processtop *stored_process;
+
 	if (process_selected(selected_process)) {
-		g_ptr_array_remove(selected_processes, selected_process);
-		print_log("Process removed");
+		for (i = 0; i < selected_processes->len; i++) {
+			stored_process = g_ptr_array_index(selected_processes, i);
+			if (!stored_process)
+				return;
+			if (stored_process->tid == selected_process->tid)
+				g_ptr_array_remove(selected_processes,
+						stored_process);
+			print_log("Process removed");
+		}
 	} else {
-		g_ptr_array_add(selected_processes, selected_process);
+			g_ptr_array_add(selected_processes, selected_process);
 		print_log("Process added");
 	}
 }
