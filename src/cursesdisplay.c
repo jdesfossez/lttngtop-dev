@@ -270,7 +270,7 @@ void update_footer()
 	print_key(footer, "Enter", "Details  ", current_view == process_details);
 	print_key(footer, "Space", "Highlight  ", 0);
 	print_key(footer, "q", "Quit ", 0);
-	print_key(footer, "P", "Pref  ", 0);
+	print_key(footer, "r", "Pref  ", 0);
 	print_key(footer, "p", "Pause  ", toggle_pause);
 
 	wrefresh(footer);
@@ -1341,7 +1341,7 @@ void *handle_keyboard(void *p)
 				resume_display();
 			}
 			break;
-		case 'P':
+		case 'r':
 			toggle_pref_panel();
 			break;
 		/* ESCAPE, but slow to process, don't know why */
