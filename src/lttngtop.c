@@ -513,11 +513,9 @@ int bt_context_add_traces_recursive(struct bt_context *ctx, const char *path,
 		}
 		metafd = openat(dirfd, "metadata", O_RDONLY);
 		if (metafd < 0) {
-			ret = close(dirfd);
-			if (ret < 0) {
-				perror("close");
-				goto error;
-			}
+			close(dirfd);
+			ret = -1;
+			continue;
 		} else {
 			int trace_id;
 
