@@ -633,7 +633,8 @@ gint sort_perf(gconstpointer p1, gconstpointer p2, gpointer key)
 void print_key_title(char *key, int line)
 {
 	wattron(center, A_BOLD);
-	mvwprintw(center, line, 1, "%s\t", key);
+	mvwprintw(center, line, 1, "%s", key);
+	mvwprintw(center, line, 30, " ");
 	wattroff(center, A_BOLD);
 }
 
@@ -646,7 +647,11 @@ void update_process_details()
 	int i, j = 0;
 	char unit[4];
 	char filename_buf[COLS];
+	int line = 1;
 	GPtrArray *newfilearray = g_ptr_array_new();
+	GHashTableIter iter;
+	struct perfcounter *perfn1, *perfn2;
+	gpointer key;
 
 	set_window_title(center, "Process details");
 
@@ -657,35 +662,43 @@ void update_process_details()
 	elapsed = data->end - data->start;
 	maxcputime = elapsed * data->cpu_table->len / 100.0;
 
-	print_key_title("Name", 1);
+	print_key_title("Name", line++);
 	wprintw(center, "%s", selected_process->comm);
-	print_key_title("TID", 2);
+	print_key_title("TID", line++);
 	wprintw(center, "%d", selected_process->tid);
 	if (!tmp) {
 		print_key_title("Does not exit at this time", 3);
 		return;
 	}
 
-	print_key_title("PID", 3);
+	print_key_title("PID", line++);
 	wprintw(center, "%d", tmp->pid);
-	print_key_title("PPID", 4);
+	print_key_title("PPID", line++);
 	wprintw(center, "%d", tmp->ppid);
-	print_key_title("CPU", 5);
+	print_key_title("CPU", line++);
 	wprintw(center, "%1.2f %%", tmp->totalcpunsec/maxcputime);
 
-	print_key_title("READ B/s", 6);
+	print_key_title("READ B/s", line++);
 	scale_unit(tmp->fileread, unit);
 	wprintw(center, "%s", unit);
 
-	print_key_title("WRITE B/s", 7);
+	print_key_title("WRITE B/s", line++);
 	scale_unit(tmp->filewrite, unit);
 	wprintw(center, "%s", unit);
 
+	g_hash_table_iter_init(&iter, global_perf_liszt);
+	while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
+		print_key_title((char *) key, line++);
+		perfn2 = g_hash_table_lookup(tmp->perf, (char *) key);
+		wprintw(center, "%d", perfn2 ? perfn2->count : 0);
+	}
+	line++;
+
 	wattron(center, A_BOLD);
-	mvwprintw(center, 8, 1, "FD");
-	mvwprintw(center, 8, 10, "READ");
-	mvwprintw(center, 8, 17, "WRITE");
-	mvwprintw(center, 8, 24, "FILENAME");
+	mvwprintw(center, line, 1, "FD");
+	mvwprintw(center, line, 10, "READ");
+	mvwprintw(center, line, 17, "WRITE");
+	mvwprintw(center, line++, 24, "FILENAME");
 	wattroff(center, A_BOLD);
 
 	/*
@@ -709,17 +722,17 @@ void update_process_details()
 		g_ptr_array_sort(newfilearray, sort_by_file_read_desc);
 
 	for (i = selected_line; i < newfilearray->len &&
-			i < (selected_line + max_center_lines - 7); i++) {
+			i < (selected_line + max_center_lines - line + 2); i++) {
 		file_tmp = g_ptr_array_index(newfilearray, i);
 		if (!file_tmp)
 			continue;
-		mvwprintw(center, 9 + j, 1, "%d", file_tmp->fd);
+		mvwprintw(center, line + j, 1, "%d", file_tmp->fd);
 		scale_unit(file_tmp->read, unit);
-		mvwprintw(center, 9 + j, 10, "%s", unit);
+		mvwprintw(center, line + j, 10, "%s", unit);
 		scale_unit(file_tmp->write, unit);
-		mvwprintw(center, 9 + j, 17, "%s", unit);
+		mvwprintw(center, line + j, 17, "%s", unit);
 		snprintf(filename_buf, COLS - 25, "%s", file_tmp->name);
-		mvwprintw(center, 9 + j, 24, "%s", filename_buf);
+		mvwprintw(center, line + j, 24, "%s", filename_buf);
 		j++;
 	}
 	g_ptr_array_free(newfilearray, TRUE);
