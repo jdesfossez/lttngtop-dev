@@ -56,6 +56,48 @@ lttng stop
 lttng destroy
 .fi
 
+.SH "KEY BINDINGS"
+
+.TP 7
+\ \ \'\fBF2\fR\': \fICPUTop \fR
+Switch to the CPUTop view which displays the CPU usage of each process
+.TP 7
+\ \ \'\fBF3\fR\': \fIPerfTop \fR
+Switch to the PerfTop view which displays the performance counters (PMU) value of each process (if enabled during tracing)
+.TP 7
+\ \ \'\fBF4\fR\': \fIIOTop \fR
+Switch to the IOTop view which displays the I/O usage of each process (as of now read and writes on any file descriptor network or disk)
+.TP 7
+\ \ \'\fBEnter\fR\': \fIProcess details \fR
+Display all relevant information for the process selected
+.TP 7
+\ \ \'\fBSpace\fR\': \fIHighlight \fR
+Highlights the process under the blue line to make it easy to find it across all views or toggle view in preference panel\fR
+.TP 7
+\ \ \'\fBq\fR\': \fIQuit \fR
+Exit the program
+.TP 7
+\ \ \'\fBr\fR\': \fIPreferences \fR
+Display the preference menu for the current view, this menu helps select the column displayed (only in PerfTop view for now) and the column to sort, use 's' to sort and 'space' to toggle the view
+.TP 7
+\ \ \'\fBs\fR\': \fISort \fR
+In preference view, sort on the currently selected line
+.TP 7
+\ \ \'\fBp\fR\': \fIPause/Resume \fR
+Pause the display, hit again to resume the refresh (only works when the trace has not been fully displayed)
+.TP 7
+\ \ \'\fBRight arrow\fR\': \fIMove forward in time \fR
+Display the next second of data, can be hit several time to bypass the default 1 second refresh period to fast forward
+.TP 7
+\ \ \'\fBLeft arrow\fR\': \fIMove backward in time \fR
+Display the previous second of data, automatically switch to pause if not already enabled
+.TP 7
+\ \ \'\fBUp arrow\' / \'k\'\fR: \fIMove UP the cursor \fR
+Move up the blue line to select processes \fR
+.TP 7
+\ \ \'\fBDown arrow\' / \'j\'\fR: \fIMove DOWN the cursor \fR
+Move down the blue line to select processes
+
 .SH "SEE ALSO"
 
 .PP
