@@ -450,8 +450,8 @@ gint sort_by_process_total_desc(gconstpointer p1, gconstpointer p2)
 {
 	struct processtop *n1 = *(struct processtop **)p1;
 	struct processtop *n2 = *(struct processtop **)p2;
-	unsigned long totaln1 = n1->filewrite + n1->fileread;
-	unsigned long totaln2 = n2->filewrite + n2->fileread;
+	unsigned long totaln1 = n1->totalfilewrite + n1->totalfileread;
+	unsigned long totaln2 = n2->totalfilewrite + n2->totalfileread;
 
 	if (totaln1 < totaln2)
 		return 1;
@@ -826,16 +826,23 @@ void update_iostream()
 	int current_line = 0;
 	int total = 0;
 	char unit[4];
+	int column;
 
 	set_window_title(center, "IO Top");
 	wattron(center, A_BOLD);
 	mvwprintw(center, 1, 1, "PID");
 	mvwprintw(center, 1, 11, "TID");
 	mvwprintw(center, 1, 22, "NAME");
-	mvwprintw(center, 1, 40, "R (B/sec)");
-	mvwprintw(center, 1, 52, "W (B/sec)");
-	mvwprintw(center, 1, 64, "Total");
+	column = 40;
+	for (i = 0; i < 3; i++) {
+		if (iostreamtopview[i].sort)
+			wattron(center, A_UNDERLINE);
+		mvwprintw(center, 1, column, iostreamtopview[i].title);
+		wattroff(center, A_UNDERLINE);
+		column += 12;
+	}
 	wattroff(center, A_BOLD);
+	wattroff(center, A_UNDERLINE);
 
 	if (iostreamtopview[0].sort == 1)
 		g_ptr_array_sort(data->process_table, sort_by_process_read_desc);
