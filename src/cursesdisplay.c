@@ -585,9 +585,9 @@ void update_cputop_display()
 		/* CPU(%) */
 		mvwprintw(center, current_line + header_offset, 1, "%1.2f",
 				tmp->totalcpunsec / maxcputime);
-		/* TGID */
-		mvwprintw(center, current_line + header_offset, 11, "%d", tmp->pid);
 		/* PID */
+		mvwprintw(center, current_line + header_offset, 11, "%d", tmp->pid);
+		/* TID */
 		mvwprintw(center, current_line + header_offset, 21, "%d", tmp->tid);
 		/* NAME */
 		mvwprintw(center, current_line + header_offset, 31, "%s", tmp->comm);
@@ -1419,8 +1419,8 @@ void init_view_headers()
 {
 	cputopview[0].title = strdup("CPU(%)");
 	cputopview[0].sort = 1;
-	cputopview[1].title = strdup("TGID");
-	cputopview[2].title = strdup("PID");
+	cputopview[1].title = strdup("PID");
+	cputopview[2].title = strdup("TID");
 	cputopview[3].title = strdup("NAME");
 
 	iostreamtopview[0].title = strdup("R (B/sec)");
