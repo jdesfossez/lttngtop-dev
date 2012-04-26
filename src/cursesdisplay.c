@@ -648,6 +648,7 @@ void update_process_details()
 	char unit[4];
 	char filename_buf[COLS];
 	int line = 1;
+	int column;
 	GPtrArray *newfilearray = g_ptr_array_new();
 	GHashTableIter iter;
 	struct perfcounter *perfn1, *perfn2;
@@ -695,10 +696,15 @@ void update_process_details()
 	line++;
 
 	wattron(center, A_BOLD);
-	mvwprintw(center, line, 1, "FD");
-	mvwprintw(center, line, 10, "READ");
-	mvwprintw(center, line, 17, "WRITE");
-	mvwprintw(center, line++, 24, "FILENAME");
+	column = 1;
+	for (i = 0; i < 3; i++) {
+		if (fileview[i].sort)
+			wattron(center, A_UNDERLINE);
+		mvwprintw(center, line, column, fileview[i].title);
+		wattroff(center, A_UNDERLINE);
+		column += 10;
+	}
+	mvwprintw(center, line++, column, "FILENAME");
 	wattroff(center, A_BOLD);
 
 	/*
@@ -728,11 +734,11 @@ void update_process_details()
 			continue;
 		mvwprintw(center, line + j, 1, "%d", file_tmp->fd);
 		scale_unit(file_tmp->read, unit);
-		mvwprintw(center, line + j, 10, "%s", unit);
+		mvwprintw(center, line + j, 11, "%s", unit);
 		scale_unit(file_tmp->write, unit);
-		mvwprintw(center, line + j, 17, "%s", unit);
+		mvwprintw(center, line + j, 21, "%s", unit);
 		snprintf(filename_buf, COLS - 25, "%s", file_tmp->name);
-		mvwprintw(center, line + j, 24, "%s", filename_buf);
+		mvwprintw(center, line + j, 31, "%s", filename_buf);
 		j++;
 	}
 	g_ptr_array_free(newfilearray, TRUE);
