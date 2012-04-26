@@ -57,7 +57,7 @@ char log_lines[MAX_LINE_LENGTH * MAX_LOG_LINES + MAX_LOG_LINES];
 
 int max_elements = 80;
 
-int toggle_threads = -1;
+int toggle_threads = 1;
 int toggle_pause = -1;
 
 int max_center_lines;
@@ -281,6 +281,7 @@ void update_footer()
 	print_key(footer, "Space", "Highlight  ", 0);
 	print_key(footer, "q", "Quit ", 0);
 	print_key(footer, "r", "Pref  ", 0);
+	print_key(footer, "t", "Threads  ", toggle_threads);
 	print_key(footer, "p", "Pause  ", toggle_pause);
 
 	wrefresh(footer);
@@ -568,6 +569,9 @@ void update_cputop_display()
 	for (i = list_offset; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
+		if (tmp->pid != tmp->tid)
+			if (toggle_threads == -1)
+				continue;
 
 		if (process_selected(tmp)) {
 			wattron(center, COLOR_PAIR(6));
@@ -785,6 +789,9 @@ void update_perf()
 	for (i = 0; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
+		if (tmp->pid != tmp->tid)
+			if (toggle_threads == -1)
+				continue;
 
 		if (process_selected(tmp)) {
 			wattron(center, COLOR_PAIR(6));
@@ -862,6 +869,9 @@ void update_iostream()
 	for (i = list_offset; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
+		if (tmp->pid != tmp->tid)
+			if (toggle_threads == -1)
+				continue;
 
 		if (process_selected(tmp)) {
 			wattron(center, COLOR_PAIR(6));
