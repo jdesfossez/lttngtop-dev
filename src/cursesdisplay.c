@@ -43,6 +43,7 @@ PANEL *pref_panel, *main_panel;
 
 int pref_panel_visible = 0;
 int pref_line_selected = 0;
+int pref_current_sort = 0;
 
 int last_display_index, currently_displayed_index;
 
@@ -329,6 +330,7 @@ static void scale_unit(uint64_t bytes, char *ret)
 	else
 		sprintf(ret, "%" PRIu64, bytes);
 }
+
 uint64_t total_io()
 {
 	int i;
@@ -555,8 +557,10 @@ void update_cputop_display()
 	wattron(center, A_BOLD);
 	column = 1;
 	for (i = 0; i < 4; i++) {
-		if (cputopview[i].sort)
+		if (cputopview[i].sort) {
 			wattron(center, A_UNDERLINE);
+			pref_current_sort = i;
+		}
 		mvwprintw(center, 1, column, cputopview[i].title);
 		wattroff(center, A_UNDERLINE);
 		column += 10;
@@ -702,8 +706,10 @@ void update_process_details()
 	wattron(center, A_BOLD);
 	column = 1;
 	for (i = 0; i < 3; i++) {
-		if (fileview[i].sort)
+		if (fileview[i].sort) {
+			pref_current_sort = i;
 			wattron(center, A_UNDERLINE);
+		}
 		mvwprintw(center, line, column, fileview[i].title);
 		wattroff(center, A_UNDERLINE);
 		column += 10;
@@ -772,16 +778,20 @@ void update_perf()
 	g_hash_table_iter_init(&iter, global_perf_liszt);
 	while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
 		if (perfn1->visible) {
+			if (perfn1->sort) {
+				wattron(center, A_UNDERLINE);
+				/* FIXME : sort in the opposite direction */
+			}
 			/* + 5 to strip the "perf_" prefix */
 			mvwprintw(center, 1, perf_row, "%s",
 					(char *) key + 5);
+			wattroff(center, A_UNDERLINE);
 			perf_row += 20;
 		}
 		if (perfn1->sort) {
 			perf_key = (char *) key;
 		}
 	}
-
 	wattroff(center, A_BOLD);
 
 	g_ptr_array_sort_with_data(data->process_table, sort_perf, perf_key);
@@ -848,8 +858,10 @@ void update_iostream()
 	mvwprintw(center, 1, 22, "NAME");
 	column = 40;
 	for (i = 0; i < 3; i++) {
-		if (iostreamtopview[i].sort)
+		if (iostreamtopview[i].sort) {
+			pref_current_sort = i;
 			wattron(center, A_UNDERLINE);
+		}
 		mvwprintw(center, 1, column, iostreamtopview[i].title);
 		wattroff(center, A_UNDERLINE);
 		column += 12;
@@ -943,6 +955,25 @@ void update_current_view()
 	sem_post(&update_display_sem);
 }
 
+void update_process_detail_sort(int *line_selected)
+{
+	int i;
+	int size;
+
+	size = 3;
+
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
+
+	if (fileview[*line_selected].sort == 1)
+		fileview[*line_selected].reverse = 1;
+	for (i = 0; i < size; i++)
+		fileview[i].sort = 0;
+	fileview[*line_selected].sort = 1;
+}
+
 void update_process_detail_pref(int *line_selected, int toggle_view, int toggle_sort)
 {
 	int i;
@@ -969,12 +1000,10 @@ void update_process_detail_pref(int *line_selected, int toggle_view, int toggle_
 
 	if (*line_selected > (size - 1))
 		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
 	if (toggle_sort == 1) {
-		if (fileview[*line_selected].sort == 1)
-			fileview[*line_selected].reverse = 1;
-		for (i = 0; i < size; i++)
-			fileview[i].sort = 0;
-		fileview[*line_selected].sort = 1;
+		update_process_detail_sort(line_selected);
 		update_current_view();
 	}
 
@@ -993,6 +1022,24 @@ void update_process_detail_pref(int *line_selected, int toggle_view, int toggle_
 	}
 	update_panels();
 	doupdate();
+}
+
+void update_iostream_sort(int *line_selected)
+{
+	int i;
+	int size;
+
+	size = 3;
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
+	if (iostreamtopview[*line_selected].sort == 1)
+		iostreamtopview[*line_selected].reverse = 1;
+	for (i = 0; i < size; i++)
+		iostreamtopview[i].sort = 0;
+	iostreamtopview[*line_selected].sort = 1;
+
 }
 
 void update_iostream_pref(int *line_selected, int toggle_view, int toggle_sort)
@@ -1021,12 +1068,10 @@ void update_iostream_pref(int *line_selected, int toggle_view, int toggle_sort)
 
 	if (*line_selected > (size - 1))
 		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
 	if (toggle_sort == 1) {
-		if (iostreamtopview[*line_selected].sort == 1)
-			iostreamtopview[*line_selected].reverse = 1;
-		for (i = 0; i < size; i++)
-			iostreamtopview[i].sort = 0;
-		iostreamtopview[*line_selected].sort = 1;
+		update_iostream_sort(line_selected);
 		update_current_view();
 	}
 
@@ -1045,6 +1090,26 @@ void update_iostream_pref(int *line_selected, int toggle_view, int toggle_sort)
 	}
 	update_panels();
 	doupdate();
+}
+
+void update_cpu_sort(int *line_selected)
+{
+	int i;
+	int size = 3;
+
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
+
+	/* special case, we don't support sorting by procname for now */
+	if (*line_selected != 3) {
+		if (cputopview[*line_selected].sort == 1)
+			cputopview[*line_selected].reverse = 1;
+		for (i = 0; i < size; i++)
+			cputopview[i].sort = 0;
+		cputopview[*line_selected].sort = 1;
+	}
 }
 
 void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
@@ -1073,16 +1138,11 @@ void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
 
 	if (*line_selected > (size - 1))
 		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
 	if (toggle_sort == 1) {
-		/* special case, we don't support sorting by procname for now */
-		if (*line_selected != 3) {
-			if (cputopview[*line_selected].sort == 1)
-				cputopview[*line_selected].reverse = 1;
-			for (i = 0; i < size; i++)
-				cputopview[i].sort = 0;
-			cputopview[*line_selected].sort = 1;
-			update_current_view();
-		}
+		update_cpu_sort(line_selected);
+		update_current_view();
 	}
 
 	for (i = 0; i < size; i++) {
@@ -1100,6 +1160,32 @@ void update_cpu_pref(int *line_selected, int toggle_view, int toggle_sort)
 	}
 	update_panels();
 	doupdate();
+}
+
+void update_perf_sort(int *line_selected)
+{
+	int i;
+	struct perfcounter *perf;
+	GList *perflist;
+	int size;
+
+	size = g_hash_table_size(global_perf_liszt);
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
+
+	i = 0;
+	perflist = g_list_first(g_hash_table_get_keys(global_perf_liszt));
+	while (perflist) {
+		perf = g_hash_table_lookup(global_perf_liszt, perflist->data);
+		if (i != *line_selected)
+			perf->sort = 0;
+		else
+			perf->sort = 1;
+		i++;
+		perflist = g_list_next(perflist);
+	}
 }
 
 void update_perf_pref(int *line_selected, int toggle_view, int toggle_sort)
@@ -1128,18 +1214,13 @@ void update_perf_pref(int *line_selected, int toggle_view, int toggle_sort)
 			" 's' : sort, space : toggle");
 	wattroff(pref_panel_window, A_BOLD);
 
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
+
 	if (toggle_sort == 1) {
-		i = 0;
-		perflist = g_list_first(g_hash_table_get_keys(global_perf_liszt));
-		while (perflist) {
-			perf = g_hash_table_lookup(global_perf_liszt, perflist->data);
-			if (i != *line_selected)
-				perf->sort = 0;
-			else
-				perf->sort = 1;
-			i++;
-			perflist = g_list_next(perflist);
-		}
+		update_perf_sort(line_selected);
 		update_current_view();
 	}
 
@@ -1193,6 +1274,32 @@ int update_preference_panel(int *line_selected, int toggle_view, int toggle_sort
 
 	return ret;
 }
+
+int update_sort(int *line_selected)
+{
+	int ret = 0;
+
+	switch(current_view) {
+		case perf:
+			update_perf_sort(line_selected);
+			break;
+		case cpu:
+			update_cpu_sort(line_selected);
+			break;
+		case iostream:
+			update_iostream_sort(line_selected);
+			break;
+		case process_details:
+			update_process_detail_sort(line_selected);
+			break;
+		default:
+			ret = -1;
+			break;
+	}
+
+	return ret;
+}
+
 
 void toggle_pref_panel(void)
 {
@@ -1334,6 +1441,21 @@ void *handle_keyboard(void *p)
 		case 's':
 			if (pref_panel_visible)
 				update_preference_panel(&pref_line_selected, 0, 1);
+			break;
+		case '>':
+			if (!pref_panel_visible) {
+				pref_current_sort++;
+				update_sort(&pref_current_sort);
+				update_current_view();
+			}
+			break;
+		case '<':
+			if (!pref_panel_visible) {
+				if (pref_current_sort > 0)
+					pref_current_sort--;
+				update_sort(&pref_current_sort);
+				update_current_view();
+			}
 			break;
 
 		case 13: /* FIXME : KEY_ENTER ?? */
