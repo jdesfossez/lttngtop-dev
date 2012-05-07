@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Mathieu Bain <mathieu.bain@polymtl.ca>
+ * Copyright (C) 2011-2012 Mathieu Bain <mathieu.bain@polymtl.ca>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
