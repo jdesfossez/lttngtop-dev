@@ -254,30 +254,24 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	struct processtop *parent, *child;
 	unsigned long timestamp;
 
-	/* FIXME : display nice error when missing context pid, tid, ppid and comm */
-
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
 	pid = get_context_pid(call_data);
 	if (pid == -1ULL) {
-//		fprintf(stderr, "Missing pid context info\n");
 		goto error;
 	}
 	tid = get_context_tid(call_data);
 	if (tid == -1ULL) {
-//		fprintf(stderr, "Missing tid context info\n");
 		goto error;
 	}
 	ppid = get_context_ppid(call_data);
 	if (ppid == -1ULL) {
-//		fprintf(stderr, "Missing ppid context info\n");
 		goto error;
 	}
 	comm = get_context_comm(call_data);
 	if (!comm) {
-//		fprintf(stderr, "Missing procname context info\n");
 		goto error;
 	}
 
@@ -359,19 +353,6 @@ static int parse_options(int argc, char **argv)
 				usage(stdout);
 				ret = 1;    /* exit cleanly */
 				goto end;
-			case OPT_LIST:
-			//	list_formats(stdout);
-				ret = 1;
-				goto end;
-			case OPT_VERBOSE:
-//				babeltrace_verbose = 1;
-				break;
-			case OPT_DEBUG:
-//				babeltrace_debug = 1;
-				break;
-			case OPT_NAMES:
-//				opt_field_names = 1;
-				break;
 			default:
 				ret = -EINVAL;
 				goto end;
