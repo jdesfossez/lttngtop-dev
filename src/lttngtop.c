@@ -150,7 +150,7 @@ error:
 struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 		struct cputime *cpu)
 {
-	struct perfcounter *ret, *global;
+	struct perfcounter *ret;
 	GHashTable *table;
 
 	if (proc)
@@ -168,16 +168,6 @@ struct perfcounter *get_perf_counter(const char *name, struct processtop *proc,
 	/* by default, make it visible in the UI */
 	ret->visible = 1;
 	g_hash_table_insert(table, (gpointer) strdup(name), ret);
-
-	global = g_hash_table_lookup(global_perf_liszt, (gpointer) name);
-	if (!global) {
-		global = g_new0(struct perfcounter, 1);
-		memcpy(global, ret, sizeof(struct perfcounter));
-		/* by default, sort on the first perf context */
-		if (g_hash_table_size(global_perf_liszt) == 0)
-			global->sort = 1;
-		g_hash_table_insert(global_perf_liszt, (gpointer) strdup(name), global);
-	}
 
 end:
 	return ret;
@@ -205,8 +195,12 @@ void extract_perf_counter_scope(const struct bt_ctf_event *event,
 		struct cputime *cpu)
 {
 	struct definition const * const *list = NULL;
+	const struct definition *field;
 	unsigned int count;
-	int i, ret;
+	struct perfcounter *perfcounter;
+	GHashTableIter iter;
+	gpointer key;
+	int ret;
 
 	if (!scope)
 		goto end;
@@ -215,13 +209,17 @@ void extract_perf_counter_scope(const struct bt_ctf_event *event,
 	if (ret < 0)
 		goto end;
 
-	for (i = 0; i < count; i++) {
-		const char *name = bt_ctf_field_name(list[i]);
-		if (strncmp(name, "perf_", 5) == 0) {
-			int value = bt_ctf_get_uint64(list[i]);
+	if (count == 0)
+		goto end;
+
+	g_hash_table_iter_init(&iter, global_perf_liszt);
+	while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfcounter)) {
+		field = bt_ctf_get_field(event, scope, (char *) key);
+		if (field) {
+			int value = bt_ctf_get_uint64(field);
 			if (bt_ctf_field_get_error())
 				continue;
-			update_perf_value(proc, cpu, name, value);
+			update_perf_value(proc, cpu, (char *) key, value);
 		}
 	}
 
@@ -536,27 +534,40 @@ static int check_field_requirements(const struct bt_ctf_field_decl *const * fiel
 		int *procname_check, int *ppid_check)
 {
 	int j;
+	struct perfcounter *global;
+	const char *name;
 
 	for (j = 0; j < field_cnt; j++) {
+		name = bt_ctf_get_decl_field_name(field_list[j]);
 		if (*tid_check == 0) {
-			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "tid", 3) == 0) {
+			if (strncmp(name, "tid", 3) == 0)
 				(*tid_check)++;
-			}
 		}
 		if (*pid_check == 0) {
-			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "pid", 3) == 0)
+			if (strncmp(name, "tid", 3) == 0)
 				(*pid_check)++;
 		}
 		if (*ppid_check == 0) {
-			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "ppid", 4) == 0)
+			if (strncmp(name, "ppid", 4) == 0)
 				(*ppid_check)++;
 		}
 		if (*procname_check == 0) {
-			if (strncmp(bt_ctf_get_decl_field_name(field_list[j]), "procname", 8) == 0)
+			if (strncmp(name, "procname", 8) == 0)
 				(*procname_check)++;
 		}
+		if (strncmp(name, "perf_", 5) == 0) {
+			global = g_hash_table_lookup(global_perf_liszt, (gpointer) name);
+			if (!global) {
+				global = g_new0(struct perfcounter, 1);
+				/* by default, sort on the first perf context */
+				if (g_hash_table_size(global_perf_liszt) == 0)
+					global->sort = 1;
+				global->visible = 1;
+				g_hash_table_insert(global_perf_liszt, (gpointer) strdup(name), global);
+			}
+		}
 	}
-	/* if all checks are OK, no need to continue the checks */
+
 	if (*tid_check == 1 && *pid_check == 1 && *ppid_check == 1 &&
 			*procname_check == 1)
 		return 0;
@@ -588,24 +599,18 @@ int check_requirements(struct bt_context *ctx)
 		ret = check_field_requirements(field_list, field_cnt,
 				&tid_check, &pid_check, &procname_check,
 				&ppid_check);
-		if (ret == 0)
-			goto end;
 
 		bt_ctf_get_decl_fields(evt_list[i], BT_EVENT_CONTEXT,
 				&field_list, &field_cnt);
 		ret = check_field_requirements(field_list, field_cnt,
 				&tid_check, &pid_check, &procname_check,
 				&ppid_check);
-		if (ret == 0)
-			goto end;
 
 		bt_ctf_get_decl_fields(evt_list[i], BT_STREAM_PACKET_CONTEXT,
 				&field_list, &field_cnt);
 		ret = check_field_requirements(field_list, field_cnt,
 				&tid_check, &pid_check, &procname_check,
 				&ppid_check);
-		if (ret == 0)
-			goto end;
 	}
 
 	if (tid_check == 0) {
@@ -625,7 +630,6 @@ int check_requirements(struct bt_context *ctx)
 		fprintf(stderr, "[error] missing procname context information\n");
 	}
 
-end:
 	return ret;
 }
 
