@@ -779,8 +779,8 @@ void update_perf()
 	while (g_hash_table_iter_next (&iter, &key, (gpointer) &perfn1)) {
 		if (perfn1->visible) {
 			if (perfn1->sort) {
+				/* pref_current_sort = i; */
 				wattron(center, A_UNDERLINE);
-				/* FIXME : sort in the opposite direction */
 			}
 			/* + 5 to strip the "perf_" prefix */
 			mvwprintw(center, 1, perf_row, "%s",
@@ -1443,19 +1443,24 @@ void *handle_keyboard(void *p)
 				update_preference_panel(&pref_line_selected, 0, 1);
 			break;
 		case '>':
-			if (!pref_panel_visible) {
+			/* perf uses a hashtable, it is ordered backward */
+			if (current_view == perf) {
+				pref_current_sort--;
+			} else if (!pref_panel_visible) {
 				pref_current_sort++;
-				update_sort(&pref_current_sort);
-				update_current_view();
 			}
+			update_sort(&pref_current_sort);
+			update_current_view();
 			break;
 		case '<':
-			if (!pref_panel_visible) {
-				if (pref_current_sort > 0)
-					pref_current_sort--;
-				update_sort(&pref_current_sort);
-				update_current_view();
+			/* perf uses a hashtable, it is ordered backward */
+			if (current_view == perf) {
+				pref_current_sort++;
+			} else if (!pref_panel_visible) {
+				pref_current_sort--;
 			}
+			update_sort(&pref_current_sort);
+			update_current_view();
 			break;
 
 		case 13: /* FIXME : KEY_ENTER ?? */
