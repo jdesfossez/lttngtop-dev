@@ -54,7 +54,7 @@ enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
 	char *prev_comm, *next_comm;
 	int prev_tid, next_tid;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -107,7 +107,7 @@ enum bt_cb_ret handle_sched_process_free(struct bt_ctf_event *call_data,
 	char *comm;
 	int tid;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 

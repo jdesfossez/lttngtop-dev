@@ -64,6 +64,13 @@ int quit = 0;
 struct mmap_stream_list mmap_list;
 GPtrArray *lttng_consumer_stream_array;
 int sessiond_metadata, consumerd_metadata;
+struct lttng_consumer_local_data *ctx = NULL;
+/* list of snapshots currently not consumed */
+GPtrArray *available_snapshots;
+sem_t metadata_available;
+FILE *metadata_fp;
+int trace_opened = 0;
+int metadata_ready = 0;
 
 enum {
 	OPT_NONE = 0,
@@ -130,7 +137,7 @@ enum bt_cb_ret check_timestamp(struct bt_ctf_event *call_data, void *private_dat
 {
 	unsigned long timestamp;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -261,7 +268,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	struct processtop *parent, *child;
 	unsigned long timestamp;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -634,6 +641,87 @@ int check_requirements(struct bt_context *ctx)
 	return ret;
 }
 
+void dump_snapshot()
+{
+	struct lttng_consumer_stream *iter;
+	unsigned long spos;
+	struct mmap_stream *new_snapshot;
+
+	int ret = 0;
+	int i;
+	/*
+	 * try lock mutex ressource courante (overrun)
+	 * if fail : overrun
+	 * stop trace (flush implicite avant stop)
+	 * lttng_consumer_take_snapshot
+	 * read timestamp packet end (use time as end pos)
+	 * 	- stream_packet_context
+	 * 	- reculer de 1 subbuf : pos - max_subbuff_size
+	 *
+	 * 	- position de fin (take_snapshot)
+	 * 	- mov_pos_slow ( fin - max_subbuff_size) lire timestamp packet end
+	 * 	- prend min(end) (activité sur tous les streams)
+	 *
+	 * start trace
+	 * unlock mutex
+	 */
+
+	helper_kernctl_buffer_flush(consumerd_metadata);
+	for (i = 0; i < lttng_consumer_stream_array->len; i++) {
+		iter = g_ptr_array_index(lttng_consumer_stream_array, i);
+		helper_kernctl_buffer_flush(helper_get_lttng_consumer_stream_wait_fd(iter));
+		ret = helper_lttng_consumer_take_snapshot(ctx, iter);
+		if (ret != 0) {
+			ret = errno;
+			perror("lttng_consumer_take_snapshots");
+			goto end;
+		}
+	}
+	for (i = 0; i < lttng_consumer_stream_array->len; i++) {
+		iter = g_ptr_array_index(lttng_consumer_stream_array, i);
+	//cds_list_for_each_entry(iter2, &mmap_stream_list.head, list) {
+
+		ret = helper_lttng_consumer_get_produced_snapshot(ctx, iter, &spos);
+		if (ret != 0) {
+			ret = errno;
+			perror("helper_lttng_consumer_get_produced_snapshot");
+			goto end;
+		}
+		//while (iter->last_pos < spos) { FIXME : last_pos does not exists
+			new_snapshot = g_new0(struct mmap_stream, 1);
+			new_snapshot->fd = helper_get_lttng_consumer_stream_wait_fd(iter);
+			//FIXME new_snapshot->last_pos = iter->last_pos; /* not last_pos, pos for the snapshot */
+//			fprintf(stderr,"ADDING AVAILABLE SNAPSHOT ON FD %d AT POSITION %lu\n",
+//					new_snapshot->kconsumerd_fd->wait_fd,
+//					new_snapshot->last_pos);
+			g_ptr_array_add(available_snapshots, new_snapshot);
+			//FIXME iter->last_pos += iter->chan->max_sb_size;
+		//}
+	}
+
+	if (!metadata_ready) {
+//		fprintf(stderr, "BLOCKING BEFORE METADATA\n");
+		sem_wait(&metadata_available);
+//		fprintf(stderr,"OPENING TRACE\n");
+		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
+			fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
+			return;
+		}
+		metadata_ready = 1;
+		metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
+	}
+
+	if (!trace_opened) {
+		//bt_ctx = bt_context_create();
+//		ret = bt_context_add_trace(ctx, NULL, "ctf", ctf_move_mmap_pos_slow, mmap_list, metadata_fp);
+		trace_opened = 1;
+	}
+	//iter_trace(bt_ctx);
+
+end:
+	return;
+}
+
 ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
 		struct lttng_consumer_local_data *ctx)
 {
@@ -679,7 +767,7 @@ ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
 					"it is due to concurrency)");
 			goto end;
 		}
-//		sem_post(&metadata_available);
+		sem_post(&metadata_available);
 	}
 
 end:
@@ -700,7 +788,6 @@ int on_recv_fd(struct lttng_consumer_stream *kconsumerd_fd)
 	struct mmap_stream *new_info;
 	size_t tmp_mmap_len;
 
-	printf("Receiving %d\n", helper_get_lttng_consumer_stream_wait_fd(kconsumerd_fd));
 	/* Opening the tracefile in write mode */
 	if (helper_get_lttng_consumer_stream_path_name(kconsumerd_fd) != NULL) {
 		ret = open(helper_get_lttng_consumer_stream_path_name(kconsumerd_fd),
@@ -726,7 +813,6 @@ int on_recv_fd(struct lttng_consumer_stream *kconsumerd_fd)
 			goto end;
 		}
 		helper_set_lttng_consumer_stream_mmap_len(kconsumerd_fd, tmp_mmap_len);
-		printf("mmap len : %ld\n", tmp_mmap_len);
 
 		helper_set_lttng_consumer_stream_mmap_base(kconsumerd_fd,
 				mmap(NULL, helper_get_lttng_consumer_stream_mmap_len(kconsumerd_fd),
@@ -788,14 +874,11 @@ int setup_live_tracing()
 	struct lttng_domain dom;
 	struct lttng_channel chan;
 	char *channel_name = "mmapchan";
-	struct lttng_consumer_local_data *ctx = NULL;
 	struct lttng_event ev;
 	int ret = 0;
 	char *command_sock_path = "/tmp/consumerd_sock";
 	static pthread_t threads[2]; /* recv_fd, poll */
 	struct lttng_event_context kctxpid, kctxcomm, kctxppid, kctxtid;
-	/* list of snapshots currently not consumed */
-	GPtrArray *available_snapshots;
 
 	struct lttng_handle *handle;
 
@@ -876,7 +959,7 @@ int setup_live_tracing()
 	lttng_destroy_session("test");
 
 	/* block until metadata is ready */
-	//sem_init(&metadata_available, 0, 0);
+	sem_init(&metadata_available, 0, 0);
 
 	//init_lttngtop();
 
