@@ -266,7 +266,7 @@ enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 	uint64_t ret, tid;
 	uint64_t cpu_id;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -310,7 +310,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	char *procname;
 	int fd;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -350,7 +350,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	char *procname;
 	int fd;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -392,7 +392,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	char *procname;
 	char *file;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -432,7 +432,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 	char *procname;
 	int fd;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -470,7 +470,7 @@ enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 	char *file_name;
 	int fd;
 
-	timestamp = bt_ctf_get_timestamp(call_data);
+	timestamp = bt_ctf_get_real_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
