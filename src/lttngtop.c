@@ -71,6 +71,7 @@ sem_t metadata_available;
 FILE *metadata_fp;
 int trace_opened = 0;
 int metadata_ready = 0;
+void ctf_move_mmap_pos_slow(struct ctf_stream_pos *pos, size_t offset, int whence);
 
 enum {
 	OPT_NONE = 0,
@@ -670,6 +671,7 @@ void dump_snapshot()
 	for (i = 0; i < lttng_consumer_stream_array->len; i++) {
 		iter = g_ptr_array_index(lttng_consumer_stream_array, i);
 		helper_kernctl_buffer_flush(helper_get_lttng_consumer_stream_wait_fd(iter));
+		printf("Taking snapshot of fd : %d\n", helper_get_lttng_consumer_stream_wait_fd(iter));
 		ret = helper_lttng_consumer_take_snapshot(ctx, iter);
 		if (ret != 0) {
 			ret = errno;
@@ -679,30 +681,30 @@ void dump_snapshot()
 	}
 	for (i = 0; i < lttng_consumer_stream_array->len; i++) {
 		iter = g_ptr_array_index(lttng_consumer_stream_array, i);
-	//cds_list_for_each_entry(iter2, &mmap_stream_list.head, list) {
-
 		ret = helper_lttng_consumer_get_produced_snapshot(ctx, iter, &spos);
 		if (ret != 0) {
 			ret = errno;
 			perror("helper_lttng_consumer_get_produced_snapshot");
 			goto end;
 		}
-		//while (iter->last_pos < spos) { FIXME : last_pos does not exists
+		while (helper_get_lttng_consumer_stream_wait_last_pos(iter) < spos) {
 			new_snapshot = g_new0(struct mmap_stream, 1);
 			new_snapshot->fd = helper_get_lttng_consumer_stream_wait_fd(iter);
-			//FIXME new_snapshot->last_pos = iter->last_pos; /* not last_pos, pos for the snapshot */
-//			fprintf(stderr,"ADDING AVAILABLE SNAPSHOT ON FD %d AT POSITION %lu\n",
-//					new_snapshot->kconsumerd_fd->wait_fd,
-//					new_snapshot->last_pos);
+			new_snapshot->last_pos = helper_get_lttng_consumer_stream_wait_last_pos(iter);
+			fprintf(stderr,"ADDING AVAILABLE SNAPSHOT ON FD %d AT POSITION %lu\n",
+					new_snapshot->fd,
+					new_snapshot->last_pos);
 			g_ptr_array_add(available_snapshots, new_snapshot);
-			//FIXME iter->last_pos += iter->chan->max_sb_size;
-		//}
+			helper_set_lttng_consumer_stream_wait_last_pos(iter, 
+				helper_get_lttng_consumer_stream_wait_last_pos(iter) +
+				helper_get_lttng_consumer_stream_chan_max_sb_size(iter));
+		}
 	}
 
 	if (!metadata_ready) {
-//		fprintf(stderr, "BLOCKING BEFORE METADATA\n");
+		fprintf(stderr, "BLOCKING BEFORE METADATA\n");
 		sem_wait(&metadata_available);
-//		fprintf(stderr,"OPENING TRACE\n");
+		fprintf(stderr,"OPENING TRACE\n");
 		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
 			fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
 			return;
@@ -711,12 +713,6 @@ void dump_snapshot()
 		metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
 	}
 
-	if (!trace_opened) {
-		//bt_ctx = bt_context_create();
-//		ret = bt_context_add_trace(ctx, NULL, "ctf", ctf_move_mmap_pos_slow, mmap_list, metadata_fp);
-		trace_opened = 1;
-	}
-	//iter_trace(bt_ctx);
 
 end:
 	return;
@@ -835,6 +831,25 @@ end:
 	return ret;
 }
 
+void *live_consume()
+{
+	struct bt_context *bt_ctx = NULL;
+	int ret;
+
+	while (1) {
+		dump_snapshot();
+		/*
+		if (!trace_opened) {
+			bt_ctx = bt_context_create();
+			ret = bt_context_add_trace(ctx, NULL, "ctf",
+					ctf_move_mmap_pos_slow, mmap_list, metadata_fp);
+			trace_opened = 1;
+		}
+		*/
+		//iter_trace(bt_ctx);
+		sleep(1);
+	}
+}
 
 int setup_consumer(char *command_sock_path, pthread_t *threads,
 		struct lttng_consumer_local_data *ctx)
@@ -865,6 +880,14 @@ int setup_consumer(char *command_sock_path, pthread_t *threads,
 		goto end;
 	}
 
+	/* Create thread to manage the polling/writing of traces */
+	ret = pthread_create(&threads[1], NULL, helper_lttng_consumer_thread_poll_fds,
+			(void *) ctx);
+	if (ret != 0) {
+		perror("pthread_create");
+		goto end;
+	}
+
 end:
 	return ret;
 }
@@ -881,6 +904,7 @@ int setup_live_tracing()
 	struct lttng_event_context kctxpid, kctxcomm, kctxppid, kctxtid;
 
 	struct lttng_handle *handle;
+	pthread_t live_trace_thread;
 
 	BT_INIT_LIST_HEAD(&mmap_list.head);
 
@@ -953,7 +977,16 @@ int setup_live_tracing()
 	}
 
 	helper_kernctl_buffer_flush(consumerd_metadata);
+
+	/* Create thread to manage the polling/writing of traces */
+	ret = pthread_create(&live_trace_thread, NULL, live_consume, NULL);
+	if (ret != 0) {
+		perror("pthread_create");
+		goto end;
+	}
+
 	sleep(10);
+	pthread_cancel(live_trace_thread);
 
 	lttng_stop_tracing("test");
 	lttng_destroy_session("test");
