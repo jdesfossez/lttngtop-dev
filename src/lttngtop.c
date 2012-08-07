@@ -121,7 +121,7 @@ enum bt_cb_ret check_timestamp(struct bt_ctf_event *call_data, void *private_dat
 {
 	unsigned long timestamp;
 
-	timestamp = bt_ctf_get_real_timestamp(call_data);
+	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -252,7 +252,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	struct processtop *parent, *child;
 	unsigned long timestamp;
 
-	timestamp = bt_ctf_get_real_timestamp(call_data);
+	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
