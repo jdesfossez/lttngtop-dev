@@ -849,7 +849,7 @@ void *live_consume()
 			fprintf(stderr,"OPENING TRACE\n");
 			if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
 				fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
-				return;
+				return NULL;
 			}
 			metadata_ready = 1;
 			metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
@@ -859,6 +859,10 @@ void *live_consume()
 			bt_ctx = bt_context_create();
 			ret = bt_context_add_trace(bt_ctx, NULL, "ctf",
 					lttngtop_ctf_packet_seek, &mmap_list, metadata_fp);
+			if (ret < 0) {
+				printf("Error adding trace\n");
+				return NULL;
+			}
 			trace_opened = 1;
 		}
 		iter_trace(bt_ctx);
@@ -999,7 +1003,7 @@ void *setup_live_tracing()
 	//init_lttngtop();
 
 end:
-	return ret;
+	return NULL;
 }
 
 int main(int argc, char **argv)
