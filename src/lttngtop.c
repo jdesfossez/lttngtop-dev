@@ -40,6 +40,7 @@
 #include <sys/mman.h>
 #include <lttng/lttng.h>
 #include <lttng/lttngtop-helper.h>
+#include <babeltrace/lttngtopmmappacketseek.h>
 
 #include "lttngtoptypes.h"
 #include "cputop.h"
@@ -54,12 +55,14 @@ const char *opt_input_path;
 struct lttngtop *copy;
 pthread_t display_thread;
 pthread_t timer_thread;
+pthread_t live_trace_thread;
 
 unsigned long refresh_display = 1 * NSEC_PER_SEC;
 unsigned long last_display_update = 0;
 int quit = 0;
 
 /* LIVE */
+pthread_t thread_live_consume;
 /* list of FDs available for being read with snapshots */
 struct mmap_stream_list mmap_list;
 GPtrArray *lttng_consumer_stream_array;
@@ -71,7 +74,6 @@ sem_t metadata_available;
 FILE *metadata_fp;
 int trace_opened = 0;
 int metadata_ready = 0;
-void ctf_move_mmap_pos_slow(struct ctf_stream_pos *pos, size_t offset, int whence);
 
 enum {
 	OPT_NONE = 0,
@@ -138,7 +140,7 @@ enum bt_cb_ret check_timestamp(struct bt_ctf_event *call_data, void *private_dat
 {
 	unsigned long timestamp;
 
-	timestamp = bt_ctf_get_real_timestamp(call_data);
+	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -269,7 +271,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	struct processtop *parent, *child;
 	unsigned long timestamp;
 
-	timestamp = bt_ctf_get_real_timestamp(call_data);
+	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
 		goto error;
 
@@ -644,6 +646,7 @@ int check_requirements(struct bt_context *ctx)
 
 void dump_snapshot()
 {
+#if 0
 	struct lttng_consumer_stream *iter;
 	unsigned long spos;
 	struct mmap_stream *new_snapshot;
@@ -716,6 +719,7 @@ void dump_snapshot()
 
 end:
 	return;
+#endif
 }
 
 ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
@@ -820,7 +824,7 @@ int on_recv_fd(struct lttng_consumer_stream *kconsumerd_fd)
 		}
 
 		g_ptr_array_add(lttng_consumer_stream_array, kconsumerd_fd);
-		ret = 1;
+		ret = 0;
 	} else {
 		consumerd_metadata = helper_get_lttng_consumer_stream_wait_fd(kconsumerd_fd);
 		sessiond_metadata = helper_get_lttng_consumer_stream_key(kconsumerd_fd);
@@ -837,16 +841,27 @@ void *live_consume()
 	int ret;
 
 	while (1) {
-		dump_snapshot();
-		/*
+//		dump_snapshot();
+
+		if (!metadata_ready) {
+			fprintf(stderr, "BLOCKING BEFORE METADATA\n");
+			sem_wait(&metadata_available);
+			fprintf(stderr,"OPENING TRACE\n");
+			if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
+				fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
+				return;
+			}
+			metadata_ready = 1;
+			metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
+		}
+
 		if (!trace_opened) {
 			bt_ctx = bt_context_create();
-			ret = bt_context_add_trace(ctx, NULL, "ctf",
-					ctf_move_mmap_pos_slow, mmap_list, metadata_fp);
+			ret = bt_context_add_trace(bt_ctx, NULL, "ctf",
+					lttngtop_ctf_packet_seek, &mmap_list, metadata_fp);
 			trace_opened = 1;
 		}
-		*/
-		//iter_trace(bt_ctx);
+		iter_trace(bt_ctx);
 		sleep(1);
 	}
 }
@@ -869,22 +884,14 @@ int setup_consumer(char *command_sock_path, pthread_t *threads,
 	ret = pthread_create(&threads[0], NULL, helper_lttng_consumer_thread_receive_fds,
 			(void *) ctx);
 	if (ret != 0) {
-		perror("pthread_create");
+		perror("pthread_create receive fd");
 		goto end;
 	}
 	/* Create thread to manage the polling/writing of traces */
 	ret = pthread_create(&threads[1], NULL, helper_lttng_consumer_thread_poll_fds,
 			(void *) ctx);
 	if (ret != 0) {
-		perror("pthread_create");
-		goto end;
-	}
-
-	/* Create thread to manage the polling/writing of traces */
-	ret = pthread_create(&threads[1], NULL, helper_lttng_consumer_thread_poll_fds,
-			(void *) ctx);
-	if (ret != 0) {
-		perror("pthread_create");
+		perror("pthread_create poll fd");
 		goto end;
 	}
 
@@ -892,7 +899,7 @@ end:
 	return ret;
 }
 
-int setup_live_tracing()
+void *setup_live_tracing()
 {
 	struct lttng_domain dom;
 	struct lttng_channel chan;
@@ -904,7 +911,6 @@ int setup_live_tracing()
 	struct lttng_event_context kctxpid, kctxcomm, kctxppid, kctxtid;
 
 	struct lttng_handle *handle;
-	pthread_t live_trace_thread;
 
 	BT_INIT_LIST_HEAD(&mmap_list.head);
 
@@ -940,9 +946,9 @@ int setup_live_tracing()
 	}
 
 	strcpy(chan.name, channel_name);
-	chan.attr.overwrite = 1;
-//	chan.attr.subbuf_size = 32768;
-	chan.attr.subbuf_size = 1048576; /* 1MB */
+	chan.attr.overwrite = 0;
+	chan.attr.subbuf_size = 32768;
+//	chan.attr.subbuf_size = 1048576; /* 1MB */
 	chan.attr.num_subbuf = 4;
 	chan.attr.switch_timer_interval = 0;
 	chan.attr.read_timer_interval = 200;
@@ -979,17 +985,13 @@ int setup_live_tracing()
 	helper_kernctl_buffer_flush(consumerd_metadata);
 
 	/* Create thread to manage the polling/writing of traces */
-	ret = pthread_create(&live_trace_thread, NULL, live_consume, NULL);
+	ret = pthread_create(&thread_live_consume, NULL, live_consume, NULL);
 	if (ret != 0) {
 		perror("pthread_create");
 		goto end;
 	}
 
-	sleep(10);
-	pthread_cancel(live_trace_thread);
-
-	lttng_stop_tracing("test");
-	lttng_destroy_session("test");
+//	pthread_cancel(live_trace_thread);
 
 	/* block until metadata is ready */
 	sem_init(&metadata_available, 0, 0);
@@ -1016,7 +1018,15 @@ int main(int argc, char **argv)
 
 	if (!opt_input_path) {
 		printf("live tracing enabled\n");
-		setup_live_tracing();
+		pthread_create(&live_trace_thread, NULL, setup_live_tracing, (void *) NULL);
+		sleep(20);
+		printf("STOPPING\n");
+		lttng_stop_tracing("test");
+		printf("DESTROYING\n");
+		lttng_destroy_session("test");
+
+		printf("CANCELLING\n");
+		pthread_cancel(live_trace_thread);
 		goto end;
 	} else {
 		init_lttngtop();
