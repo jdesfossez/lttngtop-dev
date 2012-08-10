@@ -16,4 +16,4 @@ lttngtop_SOURCES = \
 	cputop.c \
 	iostreamtop.c
 
-lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttngtop-helper -llttng-ctl -lurcu
+lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttngtop-helper -llttng-ctl -lurcu -llttngtopmmappacketseek
