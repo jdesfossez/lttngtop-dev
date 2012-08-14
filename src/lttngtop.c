@@ -132,6 +132,45 @@ void *ncurses_display(void *p)
 	}
 }
 
+/* FIXME : TMP */
+struct tm ts_format_timestamp(uint64_t timestamp)
+{
+	struct tm tm;
+	uint64_t ts_sec = 0, ts_nsec;
+	time_t time_s;
+
+	ts_nsec = timestamp;
+	ts_sec += ts_nsec / NSEC_PER_SEC;
+	ts_nsec = ts_nsec % NSEC_PER_SEC;
+
+	time_s = (time_t) ts_sec;
+
+	localtime_r(&time_s, &tm);
+
+	return tm;
+}
+
+/*
+ * hook on each event to check the timestamp and refresh the display if
+ * necessary
+ */
+enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_data)
+{
+	unsigned long timestamp;
+	struct tm start;
+	uint64_t ts_nsec_start, ts_nsec_end;
+
+
+	timestamp = bt_ctf_get_timestamp(call_data);
+
+	start = ts_format_timestamp(timestamp);
+	ts_nsec_start = timestamp % NSEC_PER_SEC;
+
+//	printf("%02d:%02d:%02d.%09" PRIu64 "\n", start.tm_hour, start.tm_min, start.tm_sec, ts_nsec_start);
+
+	return BT_CB_OK;
+}
+
 /*
  * hook on each event to check the timestamp and refresh the display if
  * necessary
@@ -390,6 +429,11 @@ void iter_trace(struct bt_context *bt_ctx)
 	begin_pos.type = BT_SEEK_BEGIN;
 	iter = bt_ctf_iter_create(bt_ctx, &begin_pos, NULL);
 
+	bt_ctf_iter_add_callback(iter, 0, NULL, 0,
+			print_timestamp,
+			NULL, NULL, NULL);
+
+#if 0
 	/* at each event check if we need to refresh */
 	bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 			check_timestamp,
@@ -434,7 +478,7 @@ void iter_trace(struct bt_context *bt_ctx)
 					"lttng_statedump_file_descriptor"),
 			NULL, 0, handle_statedump_file_descriptor,
 			NULL, NULL, NULL);
-
+#endif
 	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
 		ret = bt_iter_next(bt_ctf_get_iter(iter));
 		if (ret < 0)
@@ -824,7 +868,8 @@ int on_recv_fd(struct lttng_consumer_stream *kconsumerd_fd)
 		}
 
 		g_ptr_array_add(lttng_consumer_stream_array, kconsumerd_fd);
-		ret = 0;
+		/* keep mmap FDs internally */
+		ret = 1;
 	} else {
 		consumerd_metadata = helper_get_lttng_consumer_stream_wait_fd(kconsumerd_fd);
 		sessiond_metadata = helper_get_lttng_consumer_stream_key(kconsumerd_fd);
