@@ -51,18 +51,16 @@
 #define DEFAULT_FILE_ARRAY_SIZE 1
 
 const char *opt_input_path;
+int opt_textdump;
 
 struct lttngtop *copy;
 pthread_t display_thread;
 pthread_t timer_thread;
-pthread_t live_trace_thread;
 
 unsigned long refresh_display = 1 * NSEC_PER_SEC;
 unsigned long last_display_update = 0;
 int quit = 0;
 
-/* LIVE */
-pthread_t thread_live_consume;
 /* list of FDs available for being read with snapshots */
 struct mmap_stream_list mmap_list;
 GPtrArray *lttng_consumer_stream_array;
@@ -78,15 +76,13 @@ int metadata_ready = 0;
 enum {
 	OPT_NONE = 0,
 	OPT_HELP,
-	OPT_LIST,
-	OPT_VERBOSE,
-	OPT_DEBUG,
-	OPT_NAMES,
+	OPT_TEXTDUMP,
 };
 
 static struct poptOption long_options[] = {
 	/* longName, shortName, argInfo, argPtr, value, descrip, argDesc */
 	{ "help", 'h', POPT_ARG_NONE, NULL, OPT_HELP, NULL, NULL },
+	{ "textdump", 't', POPT_ARG_NONE, NULL, OPT_TEXTDUMP, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -388,6 +384,9 @@ static int parse_options(int argc, char **argv)
 				usage(stdout);
 				ret = 1;    /* exit cleanly */
 				goto end;
+			case OPT_TEXTDUMP:
+				opt_textdump = 1;
+				goto end;
 			default:
 				ret = -EINVAL;
 				goto end;
@@ -413,56 +412,57 @@ void iter_trace(struct bt_context *bt_ctx)
 	begin_pos.type = BT_SEEK_BEGIN;
 	iter = bt_ctf_iter_create(bt_ctx, &begin_pos, NULL);
 
-	bt_ctf_iter_add_callback(iter, 0, NULL, 0,
-			print_timestamp,
-			NULL, NULL, NULL);
+	if (opt_textdump) {
+		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
+				print_timestamp,
+				NULL, NULL, NULL);
+	} else {
+		/* at each event check if we need to refresh */
+		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
+				check_timestamp,
+				NULL, NULL, NULL);
+		/* at each event, verify the status of the process table */
+		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
+				fix_process_table,
+				NULL, NULL, NULL);
+		/* to handle the scheduling events */
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("sched_switch"),
+				NULL, 0, handle_sched_switch, NULL, NULL, NULL);
+		/* to clean up the process table */
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("sched_process_free"),
+				NULL, 0, handle_sched_process_free, NULL, NULL, NULL);
+		/* to get all the process from the statedumps */
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string(
+					"lttng_statedump_process_state"),
+				NULL, 0, handle_statedump_process_state,
+				NULL, NULL, NULL);
 
-#if 0
-	/* at each event check if we need to refresh */
-	bt_ctf_iter_add_callback(iter, 0, NULL, 0,
-			check_timestamp,
-			NULL, NULL, NULL);
-	/* at each event, verify the status of the process table */
-	bt_ctf_iter_add_callback(iter, 0, NULL, 0,
-			fix_process_table,
-			NULL, NULL, NULL);
-	/* to handle the scheduling events */
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string("sched_switch"),
-			NULL, 0, handle_sched_switch, NULL, NULL, NULL);
-	/* to clean up the process table */
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string("sched_process_free"),
-			NULL, 0, handle_sched_process_free, NULL, NULL, NULL);
-	/* to get all the process from the statedumps */
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string(
-				"lttng_statedump_process_state"),
-			NULL, 0, handle_statedump_process_state,
-			NULL, NULL, NULL);
-
-	/* for IO top */
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string("exit_syscall"),
-			NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string("sys_write"),
-			NULL, 0, handle_sys_write, NULL, NULL, NULL);
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string("sys_read"),
-			NULL, 0, handle_sys_read, NULL, NULL, NULL);
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string("sys_open"),
-			NULL, 0, handle_sys_open, NULL, NULL, NULL);
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string("sys_close"),
-			NULL, 0, handle_sys_close, NULL, NULL, NULL);
-	bt_ctf_iter_add_callback(iter,
-			g_quark_from_static_string(
+		/* for IO top */
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("exit_syscall"),
+				NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("sys_write"),
+				NULL, 0, handle_sys_write, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("sys_read"),
+				NULL, 0, handle_sys_read, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("sys_open"),
+				NULL, 0, handle_sys_open, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("sys_close"),
+				NULL, 0, handle_sys_close, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string(
 					"lttng_statedump_file_descriptor"),
-			NULL, 0, handle_statedump_file_descriptor,
-			NULL, NULL, NULL);
-#endif
+				NULL, 0, handle_statedump_file_descriptor,
+				NULL, NULL, NULL);
+	}
+
 	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
 		ret = bt_iter_next(bt_ctf_get_iter(iter));
 		if (ret < 0)
@@ -875,8 +875,8 @@ void *setup_live_tracing()
 
 	strcpy(chan.name, channel_name);
 	chan.attr.overwrite = 0;
-	chan.attr.subbuf_size = 32768;
-//	chan.attr.subbuf_size = 1048576; /* 1MB */
+//	chan.attr.subbuf_size = 32768;
+	chan.attr.subbuf_size = 1048576; /* 1MB */
 	chan.attr.num_subbuf = 4;
 	chan.attr.switch_timer_interval = 0;
 	chan.attr.read_timer_interval = 200;
@@ -891,9 +891,15 @@ void *setup_live_tracing()
 	memset(&ev, '\0', sizeof(struct lttng_event));
 	//sprintf(ev.name, "sched_switch");
 	ev.type = LTTNG_EVENT_TRACEPOINT;
-
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
 		fprintf(stderr,"error enabling event : %s\n",
+				helper_lttcomm_get_readable_code(ret));
+		goto end;
+	}
+
+	ev.type = LTTNG_EVENT_SYSCALL;
+	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+		fprintf(stderr,"error enabling syscalls : %s\n",
 				helper_lttcomm_get_readable_code(ret));
 		goto end;
 	}
@@ -915,17 +921,8 @@ void *setup_live_tracing()
 
 	helper_kernctl_buffer_flush(consumerd_metadata);
 
-	/* Create thread to manage the polling/writing of traces */
-	ret = pthread_create(&thread_live_consume, NULL, live_consume, NULL);
-	if (ret != 0) {
-		perror("pthread_create");
-		goto end;
-	}
-
 	/* block until metadata is ready */
 	sem_init(&metadata_available, 0, 0);
-
-	//init_lttngtop();
 
 end:
 	return NULL;
@@ -946,15 +943,18 @@ int main(int argc, char **argv)
 	}
 
 	if (!opt_input_path) {
-		pthread_create(&live_trace_thread, NULL, setup_live_tracing, (void *) NULL);
+		setup_live_tracing();
+		init_lttngtop();
+		if (!opt_textdump) {
+			pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
+			pthread_create(&timer_thread, NULL, refresh_thread, (void *) NULL);
+		}
+		live_consume();
+
 		sleep(2000);
-		printf("STOPPING\n");
 		lttng_stop_tracing("test");
-		printf("DESTROYING\n");
 		lttng_destroy_session("test");
 
-		printf("CANCELLING\n");
-		pthread_cancel(live_trace_thread);
 		goto end;
 	} else {
 		init_lttngtop();
