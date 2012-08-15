@@ -883,16 +883,18 @@ void *setup_live_tracing()
 	chan.attr.output = LTTNG_EVENT_MMAP;
 
 	if ((ret = lttng_enable_channel(handle, &chan)) < 0) {
-		fprintf(stderr,"error creating channel : %s\n", helper_lttcomm_get_readable_code(ret));
+		fprintf(stderr,"error creating channel : %s\n",
+				helper_lttcomm_get_readable_code(ret));
 		goto end;
 	}
 
-	sprintf(ev.name, "sched_switch");
+	memset(&ev, '\0', sizeof(struct lttng_event));
+	//sprintf(ev.name, "sched_switch");
 	ev.type = LTTNG_EVENT_TRACEPOINT;
 
-	//if ((ret = lttng_enable_event(handle, NULL, channel_name)) < 0) {
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
-		fprintf(stderr,"error enabling event : %s\n", helper_lttcomm_get_readable_code(ret));
+		fprintf(stderr,"error enabling event : %s\n",
+				helper_lttcomm_get_readable_code(ret));
 		goto end;
 	}
 
@@ -906,7 +908,8 @@ void *setup_live_tracing()
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
 
 	if ((ret = lttng_start_tracing("test")) < 0) {
-		fprintf(stderr,"error starting tracing : %s\n", helper_lttcomm_get_readable_code(ret));
+		fprintf(stderr,"error starting tracing : %s\n",
+				helper_lttcomm_get_readable_code(ret));
 		goto end;
 	}
 
