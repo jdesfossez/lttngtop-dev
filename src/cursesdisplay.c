@@ -302,23 +302,6 @@ void basic_header()
 	wrefresh(header);
 }
 
-struct tm format_timestamp(uint64_t timestamp)
-{
-	struct tm tm;
-	uint64_t ts_sec = 0, ts_nsec;
-	time_t time_s;
-
-	ts_nsec = timestamp;
-	ts_sec += ts_nsec / NSEC_PER_SEC;
-	ts_nsec = ts_nsec % NSEC_PER_SEC;
-
-	time_s = (time_t) ts_sec;
-
-	localtime_r(&time_s, &tm);
-
-	return tm;
-}
-
 static void scale_unit(uint64_t bytes, char *ret)
 {
 	if (bytes >= 1000000000)

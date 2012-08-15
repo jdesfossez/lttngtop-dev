@@ -66,4 +66,6 @@ char *get_context_comm(const struct bt_ctf_event *event);
 enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 					      void *private_data);
 
+struct tm format_timestamp(uint64_t timestamp);
+
 #endif /* _COMMON_H */

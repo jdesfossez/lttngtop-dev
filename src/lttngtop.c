@@ -132,24 +132,6 @@ void *ncurses_display(void *p)
 	}
 }
 
-/* FIXME : TMP */
-struct tm ts_format_timestamp(uint64_t timestamp)
-{
-	struct tm tm;
-	uint64_t ts_sec = 0, ts_nsec;
-	time_t time_s;
-
-	ts_nsec = timestamp;
-	ts_sec += ts_nsec / NSEC_PER_SEC;
-	ts_nsec = ts_nsec % NSEC_PER_SEC;
-
-	time_s = (time_t) ts_sec;
-
-	localtime_r(&time_s, &tm);
-
-	return tm;
-}
-
 /*
  * hook on each event to check the timestamp and refresh the display if
  * necessary
@@ -158,12 +140,12 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 {
 	unsigned long timestamp;
 	struct tm start;
-	uint64_t ts_nsec_start, ts_nsec_end;
+	uint64_t ts_nsec_start;
 
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
-	start = ts_format_timestamp(timestamp);
+	start = format_timestamp(timestamp);
 	ts_nsec_start = timestamp % NSEC_PER_SEC;
 
 	printf("%02d:%02d:%02d.%09" PRIu64 " %s\n", start.tm_hour,
@@ -690,84 +672,6 @@ int check_requirements(struct bt_context *ctx)
 	return ret;
 }
 
-void dump_snapshot()
-{
-#if 0
-	struct lttng_consumer_stream *iter;
-	unsigned long spos;
-	struct mmap_stream *new_snapshot;
-
-	int ret = 0;
-	int i;
-	/*
-	 * try lock mutex ressource courante (overrun)
-	 * if fail : overrun
-	 * stop trace (flush implicite avant stop)
-	 * lttng_consumer_take_snapshot
-	 * read timestamp packet end (use time as end pos)
-	 * 	- stream_packet_context
-	 * 	- reculer de 1 subbuf : pos - max_subbuff_size
-	 *
-	 * 	- position de fin (take_snapshot)
-	 * 	- mov_pos_slow ( fin - max_subbuff_size) lire timestamp packet end
-	 * 	- prend min(end) (activité sur tous les streams)
-	 *
-	 * start trace
-	 * unlock mutex
-	 */
-
-	helper_kernctl_buffer_flush(consumerd_metadata);
-	for (i = 0; i < lttng_consumer_stream_array->len; i++) {
-		iter = g_ptr_array_index(lttng_consumer_stream_array, i);
-		helper_kernctl_buffer_flush(helper_get_lttng_consumer_stream_wait_fd(iter));
-		printf("Taking snapshot of fd : %d\n", helper_get_lttng_consumer_stream_wait_fd(iter));
-		ret = helper_lttng_consumer_take_snapshot(ctx, iter);
-		if (ret != 0) {
-			ret = errno;
-			perror("lttng_consumer_take_snapshots");
-			goto end;
-		}
-	}
-	for (i = 0; i < lttng_consumer_stream_array->len; i++) {
-		iter = g_ptr_array_index(lttng_consumer_stream_array, i);
-		ret = helper_lttng_consumer_get_produced_snapshot(ctx, iter, &spos);
-		if (ret != 0) {
-			ret = errno;
-			perror("helper_lttng_consumer_get_produced_snapshot");
-			goto end;
-		}
-		while (helper_get_lttng_consumer_stream_wait_last_pos(iter) < spos) {
-			new_snapshot = g_new0(struct mmap_stream, 1);
-			new_snapshot->fd = helper_get_lttng_consumer_stream_wait_fd(iter);
-			new_snapshot->last_pos = helper_get_lttng_consumer_stream_wait_last_pos(iter);
-			fprintf(stderr,"ADDING AVAILABLE SNAPSHOT ON FD %d AT POSITION %lu\n",
-					new_snapshot->fd,
-					new_snapshot->last_pos);
-			g_ptr_array_add(available_snapshots, new_snapshot);
-			helper_set_lttng_consumer_stream_wait_last_pos(iter, 
-				helper_get_lttng_consumer_stream_wait_last_pos(iter) +
-				helper_get_lttng_consumer_stream_chan_max_sb_size(iter));
-		}
-	}
-
-	if (!metadata_ready) {
-		fprintf(stderr, "BLOCKING BEFORE METADATA\n");
-		sem_wait(&metadata_available);
-		fprintf(stderr,"OPENING TRACE\n");
-		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
-			fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
-			return;
-		}
-		metadata_ready = 1;
-		metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
-	}
-
-
-end:
-	return;
-#endif
-}
-
 ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
 		struct lttng_consumer_local_data *ctx)
 {
@@ -778,7 +682,6 @@ ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
 
 	if (helper_get_lttng_consumer_stream_output(kconsumerd_fd) == LTTNG_EVENT_SPLICE) {
 		/* Get the next subbuffer */
-		printf("get_next : %d\n", infd);
 		err = helper_kernctl_get_next_subbuf(infd);
 		if (err != 0) {
 			ret = errno;
@@ -793,7 +696,6 @@ ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
 			perror("Getting sub-buffer len failed.");
 			goto end;
 		}
-		printf("len : %ld\n", len);
 
 		/* splice the subbuffer to the tracefile */
 		ret = helper_lttng_consumer_on_read_subbuffer_splice(ctx, kconsumerd_fd, len);
@@ -804,8 +706,6 @@ ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
 			 */
 			fprintf(stderr,"Error splicing to tracefile\n");
 		}
-		printf("ret : %ld\n", ret);
-		printf("put_next : %d\n", infd);
 		err = helper_kernctl_put_next_subbuf(infd);
 		if (err != 0) {
 			ret = errno;
@@ -831,8 +731,7 @@ int on_update_fd(int key, uint32_t state)
 int on_recv_fd(struct lttng_consumer_stream *kconsumerd_fd)
 {
 	int ret;
-	struct mmap_stream *new_info;
-	size_t tmp_mmap_len;
+	struct mmap_stream *new_mmap_stream;
 
 	/* Opening the tracefile in write mode */
 	if (helper_get_lttng_consumer_stream_path_name(kconsumerd_fd) != NULL) {
@@ -846,28 +745,10 @@ int on_recv_fd(struct lttng_consumer_stream *kconsumerd_fd)
 	}
 
 	if (helper_get_lttng_consumer_stream_output(kconsumerd_fd) == LTTNG_EVENT_MMAP) {
-		new_info = malloc(sizeof(struct mmap_stream));
-		new_info->fd = helper_get_lttng_consumer_stream_wait_fd(kconsumerd_fd);
-		bt_list_add(&new_info->list, &mmap_list.head);
-
-		/* get the len of the mmap region */
-		ret = helper_kernctl_get_mmap_len(helper_get_lttng_consumer_stream_wait_fd(kconsumerd_fd),
-				&tmp_mmap_len);
-		if (ret != 0) {
-			ret = errno;
-			perror("helper_kernctl_get_mmap_len");
-			goto end;
-		}
-		helper_set_lttng_consumer_stream_mmap_len(kconsumerd_fd, tmp_mmap_len);
-
-		helper_set_lttng_consumer_stream_mmap_base(kconsumerd_fd,
-				mmap(NULL, helper_get_lttng_consumer_stream_mmap_len(kconsumerd_fd),
-				PROT_READ, MAP_PRIVATE, helper_get_lttng_consumer_stream_wait_fd(kconsumerd_fd), 0));
-		if (helper_get_lttng_consumer_stream_mmap_base(kconsumerd_fd) == MAP_FAILED) {
-			perror("Error mmaping");
-			ret = -1;
-			goto end;
-		}
+		new_mmap_stream = malloc(sizeof(struct mmap_stream));
+		new_mmap_stream->fd = helper_get_lttng_consumer_stream_wait_fd(
+				kconsumerd_fd);
+		bt_list_add(&new_mmap_stream->list, &mmap_list.head);
 
 		g_ptr_array_add(lttng_consumer_stream_array, kconsumerd_fd);
 		/* keep mmap FDs internally */
@@ -888,11 +769,9 @@ void *live_consume()
 	int ret;
 
 	if (!metadata_ready) {
-		fprintf(stderr, "BLOCKING BEFORE METADATA\n");
 		sem_wait(&metadata_available);
-		fprintf(stderr,"OPENING TRACE\n");
 		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
-			fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
+			fprintf(stderr,"no metadata\n");
 			return NULL;
 		}
 		metadata_ready = 1;
@@ -910,7 +789,8 @@ void *live_consume()
 		trace_opened = 1;
 	}
 	iter_trace(bt_ctx);
-	sleep(1);
+
+	return NULL;
 }
 
 int setup_consumer(char *command_sock_path, pthread_t *threads,
@@ -1039,8 +919,6 @@ void *setup_live_tracing()
 		goto end;
 	}
 
-//	pthread_cancel(live_trace_thread);
-
 	/* block until metadata is ready */
 	sem_init(&metadata_available, 0, 0);
 
@@ -1065,7 +943,6 @@ int main(int argc, char **argv)
 	}
 
 	if (!opt_input_path) {
-		printf("live tracing enabled\n");
 		pthread_create(&live_trace_thread, NULL, setup_live_tracing, (void *) NULL);
 		sleep(2000);
 		printf("STOPPING\n");

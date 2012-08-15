@@ -529,3 +529,20 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 error:
 	return BT_CB_ERROR_STOP;
 }
+
+struct tm format_timestamp(uint64_t timestamp)
+{
+	struct tm tm;
+	uint64_t ts_sec = 0, ts_nsec;
+	time_t time_s;
+
+	ts_nsec = timestamp;
+	ts_sec += ts_nsec / NSEC_PER_SEC;
+	ts_nsec = ts_nsec % NSEC_PER_SEC;
+
+	time_s = (time_t) ts_sec;
+
+	localtime_r(&time_s, &tm);
+
+	return tm;
+}
