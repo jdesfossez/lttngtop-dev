@@ -166,7 +166,9 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	start = ts_format_timestamp(timestamp);
 	ts_nsec_start = timestamp % NSEC_PER_SEC;
 
-//	printf("%02d:%02d:%02d.%09" PRIu64 "\n", start.tm_hour, start.tm_min, start.tm_sec, ts_nsec_start);
+	printf("%02d:%02d:%02d.%09" PRIu64 " %s\n", start.tm_hour,
+			start.tm_min, start.tm_sec, ts_nsec_start,
+			bt_ctf_event_name(call_data));
 
 	return BT_CB_OK;
 }
@@ -885,34 +887,30 @@ void *live_consume()
 	struct bt_context *bt_ctx = NULL;
 	int ret;
 
-	while (1) {
-//		dump_snapshot();
-
-		if (!metadata_ready) {
-			fprintf(stderr, "BLOCKING BEFORE METADATA\n");
-			sem_wait(&metadata_available);
-			fprintf(stderr,"OPENING TRACE\n");
-			if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
-				fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
-				return NULL;
-			}
-			metadata_ready = 1;
-			metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
+	if (!metadata_ready) {
+		fprintf(stderr, "BLOCKING BEFORE METADATA\n");
+		sem_wait(&metadata_available);
+		fprintf(stderr,"OPENING TRACE\n");
+		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
+			fprintf(stderr,"NO METADATA FILE, SKIPPING\n");
+			return NULL;
 		}
-
-		if (!trace_opened) {
-			bt_ctx = bt_context_create();
-			ret = bt_context_add_trace(bt_ctx, NULL, "ctf",
-					lttngtop_ctf_packet_seek, &mmap_list, metadata_fp);
-			if (ret < 0) {
-				printf("Error adding trace\n");
-				return NULL;
-			}
-			trace_opened = 1;
-		}
-		iter_trace(bt_ctx);
-		sleep(1);
+		metadata_ready = 1;
+		metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
 	}
+
+	if (!trace_opened) {
+		bt_ctx = bt_context_create();
+		ret = bt_context_add_trace(bt_ctx, NULL, "ctf",
+				lttngtop_ctf_packet_seek, &mmap_list, metadata_fp);
+		if (ret < 0) {
+			printf("Error adding trace\n");
+			return NULL;
+		}
+		trace_opened = 1;
+	}
+	iter_trace(bt_ctx);
+	sleep(1);
 }
 
 int setup_consumer(char *command_sock_path, pthread_t *threads,
@@ -977,6 +975,7 @@ void *setup_live_tracing()
 
 	ret = system("rm -rf /tmp/livesession");
 
+	lttng_destroy_session("test");
 	if ((ret = lttng_create_session("test", "/tmp/livesession")) < 0) {
 		fprintf(stderr,"error creating the session : %s\n",
 				helper_lttcomm_get_readable_code(ret));
@@ -1068,7 +1067,7 @@ int main(int argc, char **argv)
 	if (!opt_input_path) {
 		printf("live tracing enabled\n");
 		pthread_create(&live_trace_thread, NULL, setup_live_tracing, (void *) NULL);
-		sleep(20);
+		sleep(2000);
 		printf("STOPPING\n");
 		lttng_stop_tracing("test");
 		printf("DESTROYING\n");
