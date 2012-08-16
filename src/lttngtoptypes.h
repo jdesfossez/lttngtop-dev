@@ -21,6 +21,7 @@
 #include <glib.h>
 
 struct lttngtop {
+	GHashTable *process_hash_table;	/* struct processtop */
 	GPtrArray *process_table;	/* struct processtop */
 	GPtrArray *files_table;		/* struct files */
 	GPtrArray *cpu_table;		/* struct cputime */
