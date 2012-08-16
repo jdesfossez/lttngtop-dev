@@ -103,20 +103,15 @@ char *get_context_comm(const struct bt_ctf_event *event)
 /*
  * To get the parent process, put the pid in the tid field
  * because the parent process gets pid = tid
- *
- * FIXME : char *comm useful ???
  */
 struct processtop *find_process_tid(struct lttngtop *ctx, int tid, char *comm)
 {
-	gint i;
 	struct processtop *tmp;
 
-	for (i = 0; i < ctx->process_table->len; i++) {
-		tmp = g_ptr_array_index(ctx->process_table, i);
-		if (tmp && tmp->tid == tid)
-			return tmp;
-	}
-	return NULL;
+	tmp = g_hash_table_lookup(ctx->process_hash_table,
+			(gconstpointer) (unsigned long) tid);
+
+	return tmp;
 }
 
 struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
@@ -142,6 +137,8 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		newproc->threads = g_ptr_array_new();
 		newproc->perf = g_hash_table_new(g_str_hash, g_str_equal);
 		g_ptr_array_add(ctx->process_table, newproc);
+		g_hash_table_insert(ctx->process_hash_table,
+				(gpointer) (unsigned long) tid, newproc);
 
 		ctx->nbnewthreads++;
 		ctx->nbthreads++;
@@ -175,6 +172,9 @@ void death_proc(struct lttngtop *ctx, int tid, char *comm,
 {
 	struct processtop *tmp;
 	tmp = find_process_tid(ctx, tid, comm);
+
+	g_hash_table_remove(ctx->process_hash_table,
+			(gpointer) (unsigned long) tid);
 	if (tmp && strcmp(tmp->comm, comm) == 0) {
 		tmp->death = timestamp;
 		ctx->nbdeadthreads++;
@@ -283,6 +283,11 @@ void copy_perf_counter(gpointer key, gpointer value, gpointer new_table)
 	g_hash_table_insert((GHashTable *) new_table, strdup(key), newperf);
 }
 
+void copy_process_table(gpointer key, gpointer value, gpointer new_table)
+{
+	g_hash_table_insert((GHashTable *) new_table, key, value);
+}
+
 void rotate_perfcounter() {
 	int i;
 	struct processtop *tmp;
@@ -360,6 +365,9 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	dst->process_table = g_ptr_array_new();
 	dst->files_table = g_ptr_array_new();
 	dst->cpu_table = g_ptr_array_new();
+	dst->process_hash_table = g_hash_table_new(g_direct_hash, g_direct_equal);
+	g_hash_table_foreach(lttngtop.process_hash_table, copy_process_table,
+			dst->process_hash_table);
 
 	rotate_cputime(end);
 

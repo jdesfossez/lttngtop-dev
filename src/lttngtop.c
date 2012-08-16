@@ -343,6 +343,7 @@ void init_lttngtop()
 	copies = g_ptr_array_new();
 	global_perf_liszt = g_hash_table_new(g_str_hash, g_str_equal);
 
+
 	sem_init(&goodtodisplay, 0, 0);
 	sem_init(&goodtoupdate, 0, 1);
 	sem_init(&timer, 0, 1);
@@ -355,6 +356,8 @@ void init_lttngtop()
 	lttngtop.nbthreads = 0;
 	lttngtop.nbfiles = 0;
 
+	lttngtop.process_hash_table = g_hash_table_new(g_direct_hash,
+			g_direct_equal);
 	lttngtop.process_table = g_ptr_array_new();
 	lttngtop.files_table = g_ptr_array_new();
 	lttngtop.cpu_table = g_ptr_array_new();
@@ -770,12 +773,12 @@ void *live_consume()
 
 	if (!metadata_ready) {
 		sem_wait(&metadata_available);
-		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
+		if (access("/tmp/livesession/metadata", F_OK) != 0) {
 			fprintf(stderr,"no metadata\n");
 			return NULL;
 		}
 		metadata_ready = 1;
-		metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
+		metadata_fp = fopen("/tmp/livesession/metadata", "r");
 	}
 
 	if (!trace_opened) {
