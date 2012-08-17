@@ -88,9 +88,13 @@ static struct poptOption long_options[] = {
 
 void *refresh_thread(void *p)
 {
+	struct mmap_stream *mmap_info;
+
 	while (1) {
 		if (quit)
 			return NULL;
+		bt_list_for_each_entry(mmap_info, &mmap_list.head, list)
+			helper_kernctl_buffer_flush(mmap_info->fd);
 		sem_wait(&pause_sem);
 		sem_post(&pause_sem);
 		sem_post(&timer);
