@@ -53,13 +53,14 @@
 const char *opt_input_path;
 int opt_textdump;
 
+int quit = 0;
+
 struct lttngtop *copy;
 pthread_t display_thread;
 pthread_t timer_thread;
 
 unsigned long refresh_display = 1 * NSEC_PER_SEC;
 unsigned long last_display_update = 0;
-int quit = 0;
 
 /* list of FDs available for being read with snapshots */
 struct mmap_stream_list mmap_list;
@@ -91,8 +92,12 @@ void *refresh_thread(void *p)
 	struct mmap_stream *mmap_info;
 
 	while (1) {
-		if (quit)
-			return NULL;
+		if (quit) {
+			sem_post(&pause_sem);
+			sem_post(&timer);
+			sem_post(&goodtodisplay);
+			pthread_exit(0);
+		}
 		bt_list_for_each_entry(mmap_info, &mmap_list.head, list)
 			helper_kernctl_buffer_flush(mmap_info->fd);
 		sem_wait(&pause_sem);
@@ -118,17 +123,18 @@ void *ncurses_display(void *p)
 		sem_wait(&goodtodisplay);
 		sem_wait(&pause_sem);
 
+		if (quit) {
+			reset_ncurses();
+			pthread_exit(0);
+		}
+
+
 		copy = g_ptr_array_index(copies, current_display_index);
 		assert(copy);
 		display(current_display_index++);
 
 		sem_post(&goodtoupdate);
 		sem_post(&pause_sem);
-
-		if (quit) {
-			reset_ncurses();
-			pthread_exit(0);
-		}
 	}
 }
 
@@ -468,7 +474,9 @@ void iter_trace(struct bt_context *bt_ctx)
 				NULL, NULL, NULL);
 	}
 
-	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
+	while (((event = bt_ctf_iter_read_event(iter)) != NULL)) {
+		if (quit)
+			goto end_iter;
 		ret = bt_iter_next(bt_ctf_get_iter(iter));
 		if (ret < 0)
 			goto end_iter;
@@ -956,9 +964,9 @@ int main(int argc, char **argv)
 		live_consume(&bt_ctx);
 		iter_trace(bt_ctx);
 
+		pthread_join(timer_thread, NULL);
 		quit = 1;
 		pthread_join(display_thread, NULL);
-		pthread_join(timer_thread, NULL);
 
 		lttng_stop_tracing("test");
 		lttng_destroy_session("test");
@@ -984,8 +992,8 @@ int main(int argc, char **argv)
 
 		iter_trace(bt_ctx);
 
-		quit = 1;
 		pthread_join(display_thread, NULL);
+		quit = 1;
 		pthread_join(timer_thread, NULL);
 	}
 

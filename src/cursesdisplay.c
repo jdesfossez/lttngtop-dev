@@ -74,11 +74,13 @@ void reset_ncurses()
 {
 	curs_set(1);
 	endwin();
-	exit(0);
+	quit = 1;
 }
 
 static void handle_sigterm(int signal)
 {
+	fprintf(stderr, "caugh signal\n");
+	pthread_cancel(keyboard_thread);
 	reset_ncurses();
 }
 
@@ -119,6 +121,7 @@ void init_screen()
 		define_key("\033[17;2~", KEY_F(18));
 	}
 	signal(SIGTERM, handle_sigterm);
+	signal(SIGINT, handle_sigterm);
 	mousemask(BUTTON1_CLICKED, NULL);
 	refresh();
 }
@@ -1491,6 +1494,8 @@ void *handle_keyboard(void *p)
 		case KEY_F(10):
 		case 'q':
 			reset_ncurses();
+			/* exit keyboard thread */
+			pthread_exit(0);
 			break;
 		case 't':
 			toggle_threads *= -1;
@@ -1502,7 +1507,6 @@ void *handle_keyboard(void *p)
 			} else {
 				resume_display();
 			}
-			break;
 		case 'r':
 			toggle_pref_panel();
 			break;
