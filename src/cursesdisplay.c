@@ -75,11 +75,13 @@ void reset_ncurses()
 	curs_set(1);
 	endwin();
 	quit = 1;
+	sem_post(&pause_sem);
+	sem_post(&timer);
+	sem_post(&goodtodisplay);
 }
 
 static void handle_sigterm(int signal)
 {
-	fprintf(stderr, "caugh signal\n");
 	pthread_cancel(keyboard_thread);
 	reset_ncurses();
 }
@@ -1507,6 +1509,7 @@ void *handle_keyboard(void *p)
 			} else {
 				resume_display();
 			}
+			break;
 		case 'r':
 			toggle_pref_panel();
 			break;

@@ -124,10 +124,11 @@ void *ncurses_display(void *p)
 		sem_wait(&pause_sem);
 
 		if (quit) {
+			sem_post(&pause_sem);
+			sem_post(&timer);
 			reset_ncurses();
 			pthread_exit(0);
 		}
-
 
 		copy = g_ptr_array_index(copies, current_display_index);
 		assert(copy);
