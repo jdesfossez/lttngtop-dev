@@ -138,7 +138,6 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	struct tm start;
 	uint64_t ts_nsec_start;
 
-
 	timestamp = bt_ctf_get_timestamp(call_data);
 
 	start = format_timestamp(timestamp);
@@ -342,7 +341,6 @@ void init_lttngtop()
 {
 	copies = g_ptr_array_new();
 	global_perf_liszt = g_hash_table_new(g_str_hash, g_str_equal);
-
 
 	sem_init(&goodtodisplay, 0, 0);
 	sem_init(&goodtoupdate, 0, 1);
@@ -766,34 +764,33 @@ end:
 	return ret;
 }
 
-void *live_consume()
+void live_consume(struct bt_context **bt_ctx)
 {
-	struct bt_context *bt_ctx = NULL;
 	int ret;
 
 	if (!metadata_ready) {
 		sem_wait(&metadata_available);
-		if (access("/tmp/livesession/metadata", F_OK) != 0) {
+		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
 			fprintf(stderr,"no metadata\n");
-			return NULL;
+			goto end;
 		}
 		metadata_ready = 1;
-		metadata_fp = fopen("/tmp/livesession/metadata", "r");
+		metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
 	}
 
 	if (!trace_opened) {
-		bt_ctx = bt_context_create();
-		ret = bt_context_add_trace(bt_ctx, NULL, "ctf",
+		*bt_ctx = bt_context_create();
+		ret = bt_context_add_trace(*bt_ctx, NULL, "ctf",
 				lttngtop_ctf_packet_seek, &mmap_list, metadata_fp);
 		if (ret < 0) {
 			printf("Error adding trace\n");
-			return NULL;
+			goto end;
 		}
 		trace_opened = 1;
 	}
-	iter_trace(bt_ctx);
 
-	return NULL;
+end:
+	return;
 }
 
 int setup_consumer(char *command_sock_path, pthread_t *threads,
@@ -856,7 +853,7 @@ void *setup_live_tracing()
 	/* setup the session */
 	dom.type = LTTNG_DOMAIN_KERNEL;
 
-	ret = system("rm -rf /tmp/livesession");
+	ret = unlink("/tmp/livesession");
 
 	lttng_destroy_session("test");
 	if ((ret = lttng_create_session("test", "/tmp/livesession")) < 0) {
@@ -952,9 +949,13 @@ int main(int argc, char **argv)
 			pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
 			pthread_create(&timer_thread, NULL, refresh_thread, (void *) NULL);
 		}
-		live_consume();
+		live_consume(&bt_ctx);
+		iter_trace(bt_ctx);
 
-		sleep(2000);
+		quit = 1;
+		pthread_join(display_thread, NULL);
+		pthread_join(timer_thread, NULL);
+
 		lttng_stop_tracing("test");
 		lttng_destroy_session("test");
 
