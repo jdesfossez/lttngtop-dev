@@ -33,7 +33,8 @@ void update_cputop_data(unsigned long timestamp, int64_t cpu, int prev_pid,
 		elapsed = timestamp - tmpcpu->task_start;
 		tmpcpu->current_task->totalcpunsec += elapsed;
 		tmpcpu->current_task->threadstotalcpunsec += elapsed;
-		if (tmpcpu->current_task->pid != tmpcpu->current_task->tid)
+		if (tmpcpu->current_task->threadparent &&
+				tmpcpu->current_task->pid != tmpcpu->current_task->tid)
 			tmpcpu->current_task->threadparent->threadstotalcpunsec += elapsed;
 	}
 

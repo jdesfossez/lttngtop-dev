@@ -70,9 +70,7 @@ struct lttng_consumer_local_data *ctx = NULL;
 /* list of snapshots currently not consumed */
 GPtrArray *available_snapshots;
 sem_t metadata_available;
-FILE *metadata_fp;
-int trace_opened = 0;
-int metadata_ready = 0;
+int reload_trace = 0;
 
 enum {
 	OPT_NONE = 0,
@@ -475,8 +473,8 @@ void iter_trace(struct bt_context *bt_ctx)
 				NULL, NULL, NULL);
 	}
 
-	while (((event = bt_ctf_iter_read_event(iter)) != NULL)) {
-		if (quit)
+	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
+		if (quit || reload_trace)
 			goto end_iter;
 		ret = bt_iter_next(bt_ctf_get_iter(iter));
 		if (ret < 0)
@@ -773,6 +771,8 @@ int on_recv_fd(struct lttng_consumer_stream *kconsumerd_fd)
 		ret = 0;
 	}
 
+	reload_trace = 1;
+
 end:
 	return ret;
 }
@@ -780,26 +780,21 @@ end:
 void live_consume(struct bt_context **bt_ctx)
 {
 	int ret;
+	FILE *metadata_fp;
 
-	if (!metadata_ready) {
-		sem_wait(&metadata_available);
-		if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
-			fprintf(stderr,"no metadata\n");
-			goto end;
-		}
-		metadata_ready = 1;
-		metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
+	sem_wait(&metadata_available);
+	if (access("/tmp/livesession/kernel/metadata", F_OK) != 0) {
+		fprintf(stderr,"no metadata\n");
+		goto end;
 	}
+	metadata_fp = fopen("/tmp/livesession/kernel/metadata", "r");
 
-	if (!trace_opened) {
-		*bt_ctx = bt_context_create();
-		ret = bt_context_add_trace(*bt_ctx, NULL, "ctf",
-				lttngtop_ctf_packet_seek, &mmap_list, metadata_fp);
-		if (ret < 0) {
-			printf("Error adding trace\n");
-			goto end;
-		}
-		trace_opened = 1;
+	*bt_ctx = bt_context_create();
+	ret = bt_context_add_trace(*bt_ctx, NULL, "ctf",
+			lttngtop_ctf_packet_seek, &mmap_list, metadata_fp);
+	if (ret < 0) {
+		printf("Error adding trace\n");
+		goto end;
 	}
 
 end:
@@ -880,6 +875,16 @@ void *setup_live_tracing()
 		goto end;
 	}
 
+	/*
+	 * FIXME : need to let the
+	 * helper_lttng_consumer_thread_receive_fds create the
+	 * socket.
+	 * Cleaner solution ?
+	 */
+	while (access(command_sock_path, F_OK)) {
+		sleep(0.1);
+	}
+
 	if ((ret = lttng_register_consumer(handle, command_sock_path)) < 0) {
 		fprintf(stderr,"error registering consumer : %s\n",
 				helper_lttcomm_get_readable_code(ret));
@@ -945,6 +950,8 @@ int main(int argc, char **argv)
 {
 	int ret;
 	struct bt_context *bt_ctx = NULL;
+	struct mmap_stream *mmap_info;
+	unsigned long mmap_len;
 
 	ret = parse_options(argc, argv);
 	if (ret < 0) {
@@ -962,8 +969,33 @@ int main(int argc, char **argv)
 			pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
 			pthread_create(&timer_thread, NULL, refresh_thread, (void *) NULL);
 		}
-		live_consume(&bt_ctx);
-		iter_trace(bt_ctx);
+		while (!quit) {
+			reload_trace = 0;
+			live_consume(&bt_ctx);
+			iter_trace(bt_ctx);
+			ret = bt_context_remove_trace(bt_ctx, 0);
+			if (ret != 0)
+				fprintf(stderr, "error removing trace\n");
+			if (bt_ctx) {
+				bt_context_put(bt_ctx);
+			}
+
+			/*
+			 * since we receive all FDs every time there is an
+			 * update and the FD number is different every time,
+			 * we don't know which one are valid.
+			 * so we check if all FDs are usable with a simple
+			 * ioctl call.
+			 */
+			bt_list_for_each_entry(mmap_info, &mmap_list.head, list) {
+				ret = helper_kernctl_get_mmap_len(mmap_info->fd, &mmap_len);
+				if (ret != 0) {
+					ret = errno;
+					bt_list_del(&mmap_info->list);
+				}
+			}
+			sem_post(&metadata_available);
+		}
 
 		pthread_join(timer_thread, NULL);
 		quit = 1;
