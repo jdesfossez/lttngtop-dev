@@ -59,6 +59,7 @@ char log_lines[MAX_LINE_LENGTH * MAX_LOG_LINES + MAX_LOG_LINES];
 int max_elements = 80;
 
 int toggle_threads = 1;
+int toggle_virt = -1;
 int toggle_pause = -1;
 
 int max_center_lines;
@@ -66,7 +67,7 @@ GPtrArray *selected_processes;
 
 pthread_t keyboard_thread;
 
-struct header_view cputopview[4];
+struct header_view cputopview[6];
 struct header_view iostreamtopview[3];
 struct header_view fileview[3];
 
@@ -78,6 +79,8 @@ void reset_ncurses()
 	sem_post(&pause_sem);
 	sem_post(&timer);
 	sem_post(&goodtodisplay);
+	sem_post(&end_trace_sem);
+	sem_post(&goodtoupdate);
 }
 
 static void handle_sigterm(int signal)
@@ -288,6 +291,7 @@ void update_footer()
 	print_key(footer, "q", "Quit ", 0);
 	print_key(footer, "r", "Pref  ", 0);
 	print_key(footer, "t", "Threads  ", toggle_threads);
+	print_key(footer, "v", "Virt  ", toggle_virt);
 	print_key(footer, "p", "Pause  ", toggle_pause);
 
 	wrefresh(footer);
@@ -525,6 +529,7 @@ void update_cputop_display()
 	double maxcputime;
 	int nblinedisplayed = 0;
 	int current_line = 0;
+	int current_row_offset;
 	int column;
 
 	elapsed = data->end - data->start;
@@ -544,7 +549,10 @@ void update_cputop_display()
 	set_window_title(center, "CPU Top");
 	wattron(center, A_BOLD);
 	column = 1;
-	for (i = 0; i < 4; i++) {
+	for (i = 0; i < 6; i++) {
+		if (toggle_virt < 0 && (i == 3 || i == 4)) {
+			continue;
+		}
 		if (cputopview[i].sort) {
 			wattron(center, A_UNDERLINE);
 			pref_current_sort = i;
@@ -561,6 +569,7 @@ void update_cputop_display()
 	for (i = list_offset; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
+		current_row_offset = 1;
 		if (tmp->pid != tmp->tid)
 			if (toggle_threads == -1)
 				continue;
@@ -575,14 +584,31 @@ void update_cputop_display()
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
 		}
 		/* CPU(%) */
-		mvwprintw(center, current_line + header_offset, 1, "%1.2f",
+		mvwprintw(center, current_line + header_offset,
+				current_row_offset, "%1.2f",
 				tmp->totalcpunsec / maxcputime);
+		current_row_offset += 10;
 		/* PID */
-		mvwprintw(center, current_line + header_offset, 11, "%d", tmp->pid);
+		mvwprintw(center, current_line + header_offset,
+				current_row_offset, "%d", tmp->pid);
+		current_row_offset += 10;
 		/* TID */
-		mvwprintw(center, current_line + header_offset, 21, "%d", tmp->tid);
+		mvwprintw(center, current_line + header_offset,
+				current_row_offset, "%d", tmp->tid);
+		current_row_offset += 10;
+		if (toggle_virt > 0) {
+			/* VPID */
+			mvwprintw(center, current_line + header_offset,
+					current_row_offset, "%d", tmp->vpid);
+			current_row_offset += 10;
+			/* VTID */
+			mvwprintw(center, current_line + header_offset,
+					current_row_offset, "%d", tmp->vtid);
+			current_row_offset += 10;
+		}
 		/* NAME */
-		mvwprintw(center, current_line + header_offset, 31, "%s", tmp->comm);
+		mvwprintw(center, current_line + header_offset,
+				current_row_offset, "%s", tmp->comm);
 		wattroff(center, COLOR_PAIR(6));
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
@@ -672,6 +698,12 @@ void update_process_details()
 	wprintw(center, "%d", tmp->pid);
 	print_key_title("PPID", line++);
 	wprintw(center, "%d", tmp->ppid);
+	print_key_title("VPID", line++);
+	wprintw(center, "%d", tmp->vpid);
+	print_key_title("VTID", line++);
+	wprintw(center, "%d", tmp->vtid);
+	print_key_title("VPPID", line++);
+	wprintw(center, "%d", tmp->vppid);
 	print_key_title("CPU", line++);
 	wprintw(center, "%1.2f %%", tmp->totalcpunsec/maxcputime);
 
@@ -1513,6 +1545,10 @@ void *handle_keyboard(void *p)
 		case 'r':
 			toggle_pref_panel();
 			break;
+		case 'v':
+			toggle_virt *= -1;
+			update_current_view();
+			break;
 		/* ESCAPE, but slow to process, don't know why */
 		case 27:
 			if (pref_panel_visible)
@@ -1539,7 +1575,9 @@ void init_view_headers()
 	cputopview[0].sort = 1;
 	cputopview[1].title = strdup("PID");
 	cputopview[2].title = strdup("TID");
-	cputopview[3].title = strdup("NAME");
+	cputopview[3].title = strdup("VPID");
+	cputopview[4].title = strdup("VTID");
+	cputopview[5].title = strdup("NAME");
 
 	iostreamtopview[0].title = strdup("R (B/sec)");
 	iostreamtopview[1].title = strdup("W (B/sec)");

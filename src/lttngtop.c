@@ -93,11 +93,15 @@ void *refresh_thread(void *p)
 		if (quit) {
 			sem_post(&pause_sem);
 			sem_post(&timer);
+			sem_post(&end_trace_sem);
 			sem_post(&goodtodisplay);
+			sem_post(&goodtoupdate);
 			pthread_exit(0);
 		}
+		if (!opt_input_path) {
 		bt_list_for_each_entry(mmap_info, &mmap_list.head, list)
 			helper_kernctl_buffer_flush(mmap_info->fd);
+		}
 		sem_wait(&pause_sem);
 		sem_post(&pause_sem);
 		sem_post(&timer);
@@ -293,7 +297,7 @@ void update_perf_counter(struct processtop *proc, const struct bt_ctf_event *eve
 enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	int pid, tid, ppid;
+	int pid, tid, ppid, vpid, vtid, vppid;
 	char *comm;
 	struct processtop *parent, *child;
 	unsigned long timestamp;
@@ -314,6 +318,18 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	if (ppid == -1ULL) {
 		goto error;
 	}
+	vpid = get_context_vpid(call_data);
+	if (pid == -1ULL) {
+		vpid = -1;
+	}
+	vtid = get_context_vtid(call_data);
+	if (tid == -1ULL) {
+		vtid = -1;
+	}
+	vppid = get_context_vppid(call_data);
+	if (ppid == -1ULL) {
+		vppid = -1;
+	}
 	comm = get_context_comm(call_data);
 	if (!comm) {
 		goto error;
@@ -323,7 +339,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	child = find_process_tid(&lttngtop, tid, comm);
 	if (!child)
 		child = add_proc(&lttngtop, tid, comm, timestamp);
-	update_proc(child, pid, tid, ppid, comm);
+	update_proc(child, pid, tid, ppid, vpid, vtid, vppid, comm);
 
 	if (pid != tid) {
 		/* find or create the parent */

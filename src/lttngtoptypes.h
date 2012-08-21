@@ -44,12 +44,11 @@ struct processtop {
 	char *comm;
 	int tid;
 	int ppid;
-	int oldpid;
-	int oldtid;
-	int oldppid;
+	int vpid;
+	int vtid;
+	int vppid;
 	unsigned long birth;
 	unsigned long death;
-	unsigned long lastactivity;
 	/* Files managing */
 	GPtrArray *process_files_table;
 	struct file_history *files_history;
