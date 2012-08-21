@@ -84,6 +84,51 @@ uint64_t get_context_ppid(const struct bt_ctf_event *event)
 	return ppid;
 }
 
+uint64_t get_context_vtid(const struct bt_ctf_event *event)
+{
+	const struct definition *scope;
+	uint64_t vtid;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	vtid = bt_ctf_get_int64(bt_ctf_get_field(event,
+				scope, "_vtid"));
+	if (bt_ctf_field_get_error()) {
+		return -1ULL;
+	}
+
+	return vtid;
+}
+
+uint64_t get_context_vpid(const struct bt_ctf_event *event)
+{
+	const struct definition *scope;
+	uint64_t vpid;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	vpid = bt_ctf_get_int64(bt_ctf_get_field(event,
+				scope, "_vpid"));
+	if (bt_ctf_field_get_error()) {
+		return -1ULL;
+	}
+
+	return vpid;
+}
+
+uint64_t get_context_vppid(const struct bt_ctf_event *event)
+{
+	const struct definition *scope;
+	uint64_t vppid;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	vppid = bt_ctf_get_int64(bt_ctf_get_field(event,
+				scope, "_vppid"));
+	if (bt_ctf_field_get_error()) {
+		return -1ULL;
+	}
+
+	return vppid;
+}
+
 char *get_context_comm(const struct bt_ctf_event *event)
 {
 	const struct definition *scope;
@@ -149,12 +194,15 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 }
 
 struct processtop* update_proc(struct processtop* proc, int pid, int tid,
-		int ppid, char *comm)
+		int ppid, int vpid, int vtid, int vppid, char *comm)
 {
 	if (proc) {
 		proc->pid = pid;
 		proc->tid = tid;
 		proc->ppid = ppid;
+		proc->vpid = vpid;
+		proc->vtid = vtid;
+		proc->vppid = vppid;
 		if (strcmp(proc->comm, comm) != 0) {
 			free(proc->comm);
 			proc->comm = strdup(comm);

@@ -39,7 +39,7 @@ struct processtop *find_process_tid(struct lttngtop *ctx, int pid, char *comm);
 struct processtop* add_proc(struct lttngtop *ctx, int pid, char *comm,
 		unsigned long timestamp);
 struct processtop* update_proc(struct processtop* proc, int pid, int tid,
-		int ppid, char *comm);
+		int ppid, int vpid, int vtid, int vppid, char *comm);
 void add_thread(struct processtop *parent, struct processtop *thread);
 struct processtop* get_proc(struct lttngtop *ctx, int tid, char *comm,
 		unsigned long timestamp);
@@ -64,6 +64,9 @@ uint64_t get_context_tid(const struct bt_ctf_event *event);
 uint64_t get_context_pid(const struct bt_ctf_event *event);
 uint64_t get_context_ppid(const struct bt_ctf_event *event);
 char *get_context_comm(const struct bt_ctf_event *event);
+uint64_t get_context_vtid(const struct bt_ctf_event *event);
+uint64_t get_context_vpid(const struct bt_ctf_event *event);
+uint64_t get_context_vppid(const struct bt_ctf_event *event);
 
 enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 					      void *private_data);
