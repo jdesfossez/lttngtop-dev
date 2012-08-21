@@ -946,6 +946,10 @@ int setup_live_tracing()
 	lttng_add_context(handle, &kctxcomm, NULL, NULL);
 	kctxtid.ctx = LTTNG_EVENT_CONTEXT_TID;
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
+	kctxpid.ctx = LTTNG_EVENT_CONTEXT_VPID;
+	lttng_add_context(handle, &kctxpid, NULL, NULL);
+	kctxtid.ctx = LTTNG_EVENT_CONTEXT_VTID;
+	lttng_add_context(handle, &kctxtid, NULL, NULL);
 
 	if ((ret = lttng_start_tracing("test")) < 0) {
 		fprintf(stderr,"error starting tracing : %s\n",
