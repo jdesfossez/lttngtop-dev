@@ -834,7 +834,7 @@ end:
 	return ret;
 }
 
-void *setup_live_tracing()
+int setup_live_tracing()
 {
 	struct lttng_domain dom;
 	struct lttng_channel chan;
@@ -853,7 +853,7 @@ void *setup_live_tracing()
 
 	if ((ret = setup_consumer(command_sock_path, threads, ctx)) < 0) {
 		fprintf(stderr,"error setting up consumer\n");
-		goto end;
+		goto error;
 	}
 
 	available_snapshots = g_ptr_array_new();
@@ -867,12 +867,12 @@ void *setup_live_tracing()
 	if ((ret = lttng_create_session("test", "/tmp/livesession")) < 0) {
 		fprintf(stderr,"error creating the session : %s\n",
 				helper_lttcomm_get_readable_code(ret));
-		goto end;
+		goto error;
 	}
 
 	if ((handle = lttng_create_handle("test", &dom)) == NULL) {
 		fprintf(stderr,"error creating handle\n");
-		goto end;
+		goto error_session;
 	}
 
 	/*
@@ -888,7 +888,7 @@ void *setup_live_tracing()
 	if ((ret = lttng_register_consumer(handle, command_sock_path)) < 0) {
 		fprintf(stderr,"error registering consumer : %s\n",
 				helper_lttcomm_get_readable_code(ret));
-		goto end;
+		goto error_session;
 	}
 
 	strcpy(chan.name, channel_name);
@@ -903,7 +903,7 @@ void *setup_live_tracing()
 	if ((ret = lttng_enable_channel(handle, &chan)) < 0) {
 		fprintf(stderr,"error creating channel : %s\n",
 				helper_lttcomm_get_readable_code(ret));
-		goto end;
+		goto error_session;
 	}
 
 	memset(&ev, '\0', sizeof(struct lttng_event));
@@ -912,14 +912,14 @@ void *setup_live_tracing()
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
 		fprintf(stderr,"error enabling event : %s\n",
 				helper_lttcomm_get_readable_code(ret));
-		goto end;
+		goto error_session;
 	}
 
 	ev.type = LTTNG_EVENT_SYSCALL;
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
 		fprintf(stderr,"error enabling syscalls : %s\n",
 				helper_lttcomm_get_readable_code(ret));
-		goto end;
+		goto error_session;
 	}
 
 	kctxpid.ctx = LTTNG_EVENT_CONTEXT_PID;
@@ -934,7 +934,7 @@ void *setup_live_tracing()
 	if ((ret = lttng_start_tracing("test")) < 0) {
 		fprintf(stderr,"error starting tracing : %s\n",
 				helper_lttcomm_get_readable_code(ret));
-		goto end;
+		goto error_session;
 	}
 
 	helper_kernctl_buffer_flush(consumerd_metadata);
@@ -942,8 +942,12 @@ void *setup_live_tracing()
 	/* block until metadata is ready */
 	sem_init(&metadata_available, 0, 0);
 
-end:
-	return NULL;
+	return 0;
+
+error_session:
+	lttng_destroy_session("test");
+error:
+	return -1;
 }
 
 int main(int argc, char **argv)
@@ -963,7 +967,10 @@ int main(int argc, char **argv)
 	}
 
 	if (!opt_input_path) {
-		setup_live_tracing();
+		ret = setup_live_tracing();
+		if (ret < 0) {
+			goto end;
+		}
 		init_lttngtop();
 		if (!opt_textdump) {
 			pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
@@ -990,7 +997,6 @@ int main(int argc, char **argv)
 			bt_list_for_each_entry(mmap_info, &mmap_list.head, list) {
 				ret = helper_kernctl_get_mmap_len(mmap_info->fd, &mmap_len);
 				if (ret != 0) {
-					ret = errno;
 					bt_list_del(&mmap_info->list);
 				}
 			}
