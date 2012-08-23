@@ -569,13 +569,6 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	/*
-	 * FIXME
-	 * I first tried with bt_ctf_get_string but doesn`t work at all
-	 * It couldn`t find the field _name because it is an integer in
-	 * the metadata and not a string like _filename for the
-	 * statedump_file_descriptor
-	 */
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
 	procname = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
@@ -593,14 +586,6 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	free(proc->comm);
 	proc->comm = strdup(procname);
 	proc->pid = pid;
-
-	/*
-	 * FIXME
-	 * I would like to free procname because it is duplicated
-	 * when the process is created but it segfaults...
-	 *
-	 * free(procname);
-	 */
 
 	return BT_CB_OK;
 
