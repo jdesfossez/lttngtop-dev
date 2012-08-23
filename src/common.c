@@ -541,17 +541,15 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	ppid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_ppid"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing pid context info\n");
+		fprintf(stderr, "Missing ppid context info\n");
 		goto error;
 	}
-
 	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_tid"));
 	if (bt_ctf_field_get_error()) {
 		fprintf(stderr, "Missing tid context info\n");
 		goto error;
 	}
-
 	vtid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_vtid"));
 	if (bt_ctf_field_get_error()) {
@@ -561,13 +559,13 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	vpid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_vpid"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing vtid context info\n");
+		fprintf(stderr, "Missing vpid context info\n");
 		goto error;
 	}
 	vppid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_vppid"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing vtid context info\n");
+		fprintf(stderr, "Missing vppid context info\n");
 		goto error;
 	}
 
