@@ -523,7 +523,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	const struct bt_definition *scope;
 	struct processtop *proc;
 	unsigned long timestamp;
-	int64_t pid, tid;
+	int64_t pid, tid, ppid, vtid, vpid, vppid;
 	char *procname;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -538,13 +538,36 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 		fprintf(stderr, "Missing pid context info\n");
 		goto error;
 	}
+	ppid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+				scope, "_ppid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing pid context info\n");
+		goto error;
+	}
 
-	scope = bt_ctf_get_top_level_scope(call_data,
-			BT_EVENT_FIELDS);
 	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_tid"));
 	if (bt_ctf_field_get_error()) {
 		fprintf(stderr, "Missing tid context info\n");
+		goto error;
+	}
+
+	vtid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+				scope, "_vtid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing vtid context info\n");
+		goto error;
+	}
+	vpid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+				scope, "_vpid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing vtid context info\n");
+		goto error;
+	}
+	vppid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+				scope, "_vppid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing vtid context info\n");
 		goto error;
 	}
 
@@ -567,6 +590,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	proc = find_process_tid(&lttngtop, tid, procname);
 	if (proc == NULL)
 		proc = add_proc(&lttngtop, tid, procname, timestamp);
+	update_proc(proc, pid, tid, ppid, vpid, vtid, vppid, procname);
 
 	free(proc->comm);
 	proc->comm = strdup(procname);
