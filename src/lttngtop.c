@@ -489,7 +489,7 @@ void iter_trace(struct bt_context *bt_ctx)
 				NULL, NULL, NULL);
 	}
 
-	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
+	while ((event = bt_ctf_iter_read_event(iter, NULL)) != NULL) {
 		if (quit || reload_trace)
 			goto end_iter;
 		ret = bt_iter_next(bt_ctf_get_iter(iter));
