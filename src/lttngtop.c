@@ -51,7 +51,9 @@
 #define DEFAULT_FILE_ARRAY_SIZE 1
 
 const char *opt_input_path;
-int opt_textdump;
+static int opt_textdump;
+static int opt_pid;
+static int opt_child;
 
 int quit = 0;
 
@@ -76,12 +78,16 @@ enum {
 	OPT_NONE = 0,
 	OPT_HELP,
 	OPT_TEXTDUMP,
+	OPT_PID,
+	OPT_CHILD,
 };
 
 static struct poptOption long_options[] = {
 	/* longName, shortName, argInfo, argPtr, value, descrip, argDesc */
 	{ "help", 'h', POPT_ARG_NONE, NULL, OPT_HELP, NULL, NULL },
 	{ "textdump", 't', POPT_ARG_NONE, NULL, OPT_TEXTDUMP, NULL, NULL },
+	{ "child", 'f', POPT_ARG_NONE, NULL, OPT_CHILD, NULL, NULL },
+	{ "pid", 'p', POPT_ARG_INT, &opt_pid, OPT_PID, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -150,17 +156,29 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	unsigned long timestamp;
 	struct tm start;
 	uint64_t ts_nsec_start;
+	int pid;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
 	start = format_timestamp(timestamp);
 	ts_nsec_start = timestamp % NSEC_PER_SEC;
 
-	printf("%02d:%02d:%02d.%09" PRIu64 " %s\n", start.tm_hour,
-			start.tm_min, start.tm_sec, ts_nsec_start,
-			bt_ctf_event_name(call_data));
+	pid = get_context_pid(call_data);
+	if (pid == -1ULL && opt_pid) {
+		goto error;
+	}
+	
+	if (opt_pid && opt_pid != pid)
+		goto end;
 
+	printf("%02d:%02d:%02d.%09" PRIu64 " %d : %s\n", start.tm_hour,
+			start.tm_min, start.tm_sec, ts_nsec_start,
+			pid, bt_ctf_event_name(call_data));
+
+end:
 	return BT_CB_OK;
+error:
+	return BT_CB_ERROR_STOP;
 }
 
 /*
@@ -412,7 +430,14 @@ static int parse_options(int argc, char **argv)
 				goto end;
 			case OPT_TEXTDUMP:
 				opt_textdump = 1;
-				goto end;
+				break;
+			case OPT_CHILD:
+				opt_textdump = 1;
+				opt_child = 1;
+				break;
+			case OPT_PID:
+				opt_textdump = 1;
+				break;
 			default:
 				ret = -EINVAL;
 				goto end;
@@ -439,6 +464,9 @@ void iter_trace(struct bt_context *bt_ctx)
 	iter = bt_ctf_iter_create(bt_ctx, &begin_pos, NULL);
 
 	if (opt_textdump) {
+		if (opt_pid) {
+			printf("PID : %d, Child : %d\n", opt_pid, opt_child);
+		}
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 				print_timestamp,
 				NULL, NULL, NULL);
