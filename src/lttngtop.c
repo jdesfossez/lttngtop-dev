@@ -105,8 +105,8 @@ void *refresh_thread(void *p)
 			pthread_exit(0);
 		}
 		if (!opt_input_path) {
-		bt_list_for_each_entry(mmap_info, &mmap_list.head, list)
-			helper_kernctl_buffer_flush(mmap_info->fd);
+			bt_list_for_each_entry(mmap_info, &mmap_list.head, list)
+				helper_kernctl_buffer_flush(mmap_info->fd);
 		}
 		sem_wait(&pause_sem);
 		sem_post(&pause_sem);
@@ -157,6 +157,8 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	struct tm start;
 	uint64_t ts_nsec_start;
 	int pid;
+	int64_t syscall_ret;
+	const struct definition *scope;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
@@ -171,9 +173,17 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	if (opt_pid && opt_pid != pid)
 		goto end;
 
-	printf("%02d:%02d:%02d.%09" PRIu64 " %d : %s\n", start.tm_hour,
-			start.tm_min, start.tm_sec, ts_nsec_start,
-			pid, bt_ctf_event_name(call_data));
+	if (strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) {
+		scope = bt_ctf_get_top_level_scope(call_data,
+				BT_EVENT_FIELDS);
+		syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+					scope, "_ret"));
+		printf("= %ld\n", syscall_ret);
+	} else {
+		printf("%02d:%02d:%02d.%09" PRIu64 " %d : %s ", start.tm_hour,
+				start.tm_min, start.tm_sec, ts_nsec_start,
+				pid, bt_ctf_event_name(call_data));
+	}
 
 end:
 	return BT_CB_OK;
@@ -436,6 +446,7 @@ static int parse_options(int argc, char **argv)
 				opt_child = 1;
 				break;
 			case OPT_PID:
+				refresh_display = 0.1 * NSEC_PER_SEC;
 				opt_textdump = 1;
 				break;
 			default:
@@ -937,9 +948,13 @@ int setup_live_tracing()
 
 	strcpy(chan.name, channel_name);
 	chan.attr.overwrite = 0;
-//	chan.attr.subbuf_size = 32768;
-	chan.attr.subbuf_size = 1048576; /* 1MB */
-	chan.attr.num_subbuf = 4;
+	if (opt_pid) {
+		chan.attr.subbuf_size = 32768;
+		chan.attr.num_subbuf = 8;
+	} else {
+		chan.attr.subbuf_size = 1048576; /* 1MB */
+		chan.attr.num_subbuf = 4;
+	}
 	chan.attr.switch_timer_interval = 0;
 	chan.attr.read_timer_interval = 200;
 	chan.attr.output = LTTNG_EVENT_MMAP;
@@ -952,11 +967,13 @@ int setup_live_tracing()
 
 	memset(&ev, '\0', sizeof(struct lttng_event));
 	//sprintf(ev.name, "sched_switch");
-	ev.type = LTTNG_EVENT_TRACEPOINT;
-	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
-		fprintf(stderr,"error enabling event : %s\n",
-				helper_lttcomm_get_readable_code(ret));
-		goto error_session;
+	if (!opt_pid) {
+		ev.type = LTTNG_EVENT_TRACEPOINT;
+		if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+			fprintf(stderr,"error enabling event : %s\n",
+					helper_lttcomm_get_readable_code(ret));
+			goto error_session;
+		}
 	}
 
 	ev.type = LTTNG_EVENT_SYSCALL;
@@ -968,16 +985,18 @@ int setup_live_tracing()
 
 	kctxpid.ctx = LTTNG_EVENT_CONTEXT_PID;
 	lttng_add_context(handle, &kctxpid, NULL, NULL);
-	kctxppid.ctx = LTTNG_EVENT_CONTEXT_PPID;
-	lttng_add_context(handle, &kctxppid, NULL, NULL);
-	kctxcomm.ctx = LTTNG_EVENT_CONTEXT_PROCNAME;
-	lttng_add_context(handle, &kctxcomm, NULL, NULL);
 	kctxtid.ctx = LTTNG_EVENT_CONTEXT_TID;
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
-	kctxpid.ctx = LTTNG_EVENT_CONTEXT_VPID;
-	lttng_add_context(handle, &kctxpid, NULL, NULL);
-	kctxtid.ctx = LTTNG_EVENT_CONTEXT_VTID;
-	lttng_add_context(handle, &kctxtid, NULL, NULL);
+	if (!opt_pid) {
+		kctxppid.ctx = LTTNG_EVENT_CONTEXT_PPID;
+		lttng_add_context(handle, &kctxppid, NULL, NULL);
+		kctxcomm.ctx = LTTNG_EVENT_CONTEXT_PROCNAME;
+		lttng_add_context(handle, &kctxcomm, NULL, NULL);
+		kctxpid.ctx = LTTNG_EVENT_CONTEXT_VPID;
+		lttng_add_context(handle, &kctxpid, NULL, NULL);
+		kctxtid.ctx = LTTNG_EVENT_CONTEXT_VTID;
+		lttng_add_context(handle, &kctxtid, NULL, NULL);
+	}
 
 	if ((ret = lttng_start_tracing("test")) < 0) {
 		fprintf(stderr,"error starting tracing : %s\n",
