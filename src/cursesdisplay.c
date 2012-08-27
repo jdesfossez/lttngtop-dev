@@ -570,6 +570,14 @@ void update_cputop_display()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 		current_row_offset = 1;
+		if (!opt_tid && (opt_hostname && !lookup_hostname_list(tmp->hostname)))
+			continue;
+		if (!opt_hostname && (opt_tid && !lookup_tid_list(tmp->pid)))
+			continue;
+		if ((opt_tid && !lookup_tid_list(tmp->tid)) &&
+				(opt_hostname && !lookup_hostname_list(tmp->hostname)))
+			continue;
+
 		if (tmp->pid != tmp->tid)
 			if (toggle_threads == -1)
 				continue;
@@ -819,6 +827,15 @@ void update_perf()
 	for (i = 0; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
+
+		if (!opt_tid && (opt_hostname && !lookup_hostname_list(tmp->hostname)))
+			continue;
+		if (!opt_hostname && (opt_tid && !lookup_tid_list(tmp->pid)))
+			continue;
+		if ((opt_tid && !lookup_tid_list(tmp->tid)) &&
+				(opt_hostname && !lookup_hostname_list(tmp->hostname)))
+			continue;
+
 		if (tmp->pid != tmp->tid)
 			if (toggle_threads == -1)
 				continue;
@@ -901,6 +918,15 @@ void update_iostream()
 	for (i = list_offset; i < data->process_table->len &&
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
+
+		if (!opt_tid && (opt_hostname && !lookup_hostname_list(tmp->hostname)))
+			continue;
+		if (!opt_hostname && (opt_tid && !lookup_tid_list(tmp->pid)))
+			continue;
+		if ((opt_tid && !lookup_tid_list(tmp->tid)) &&
+				(opt_hostname && !lookup_hostname_list(tmp->hostname)))
+			continue;
+
 		if (tmp->pid != tmp->tid)
 			if (toggle_threads == -1)
 				continue;

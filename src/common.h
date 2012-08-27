@@ -32,7 +32,9 @@ GPtrArray *copies; /* struct lttngtop */
 GHashTable *global_perf_liszt;
 
 char *opt_tid;
+char *opt_hostname;
 GHashTable *tid_list;
+GHashTable *hostname_list;
 
 extern int quit;
 
@@ -42,7 +44,8 @@ struct processtop *find_process_tid(struct lttngtop *ctx, int pid, char *comm);
 struct processtop* add_proc(struct lttngtop *ctx, int pid, char *comm,
 		unsigned long timestamp);
 struct processtop* update_proc(struct processtop* proc, int pid, int tid,
-		int ppid, int vpid, int vtid, int vppid, char *comm);
+		int ppid, int vpid, int vtid, int vppid, char *comm,
+		char *hostname);
 void add_thread(struct processtop *parent, struct processtop *thread);
 struct processtop* get_proc(struct lttngtop *ctx, int tid, char *comm,
 		unsigned long timestamp);
@@ -70,6 +73,7 @@ char *get_context_comm(const struct bt_ctf_event *event);
 uint64_t get_context_vtid(const struct bt_ctf_event *event);
 uint64_t get_context_vpid(const struct bt_ctf_event *event);
 uint64_t get_context_vppid(const struct bt_ctf_event *event);
+char *get_context_hostname(const struct bt_ctf_event *event);
 
 enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 					      void *private_data);
@@ -77,5 +81,6 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 struct tm format_timestamp(uint64_t timestamp);
 
 int *lookup_tid_list(int tid);
+char *lookup_hostname_list(const char *hostname);
 
 #endif /* _COMMON_H */
