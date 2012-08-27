@@ -25,6 +25,7 @@ struct lttngtop {
 	GPtrArray *process_table;	/* struct processtop */
 	GPtrArray *files_table;		/* struct files */
 	GPtrArray *cpu_table;		/* struct cputime */
+	GPtrArray *kprobes_table;	/* struct kprobes */
 	unsigned long start;
 	unsigned long end;
 	unsigned int nbproc;
@@ -179,6 +180,14 @@ struct header_view {
 	int visible;
 	int sort;
 	int reverse;
+};
+
+struct kprobes {
+	char *probe_name;
+	char *symbol_name;
+	int probe_addr;
+	int probe_offset;
+	int count;
 };
 
 #endif /* LTTNGTOPTYPES_H */

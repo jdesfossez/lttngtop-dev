@@ -430,6 +430,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	struct processtop *tmp, *tmp2, *new;
 	struct cputime *tmpcpu, *newcpu;
 	struct files *tmpfile, *newfile;
+	struct kprobes *tmpprobe, *newprobe;
 
 	dst = g_new0(struct lttngtop, 1);
 	dst->start = start;
@@ -438,6 +439,7 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 	dst->process_table = g_ptr_array_new();
 	dst->files_table = g_ptr_array_new();
 	dst->cpu_table = g_ptr_array_new();
+	dst->kprobes_table = g_ptr_array_new();
 	dst->process_hash_table = g_hash_table_new(g_direct_hash, g_direct_equal);
 	g_hash_table_foreach(lttngtop.process_hash_table, copy_process_table,
 			dst->process_hash_table);
@@ -519,6 +521,13 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		 * so the reference is invalid after the memcpy
 		 */
 		g_ptr_array_add(dst->cpu_table, newcpu);
+	}
+	for (i = 0; i < lttngtop.kprobes_table->len; i++) {
+		tmpprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
+		newprobe = g_new0(struct kprobes, 1);
+		memcpy(newprobe, tmpprobe, sizeof(struct kprobes));
+		tmpprobe->count = 0;
+		g_ptr_array_add(dst->kprobes_table, newprobe);
 	}
 	/* FIXME : better algo */
 	/* create the threads index if required */
