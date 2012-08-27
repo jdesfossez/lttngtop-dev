@@ -70,6 +70,7 @@ pthread_t keyboard_thread;
 struct header_view cputopview[6];
 struct header_view iostreamtopview[3];
 struct header_view fileview[3];
+struct header_view kprobeview[2];
 
 void reset_ncurses()
 {
@@ -523,25 +524,34 @@ gint sort_by_cpu_group_by_threads_desc(gconstpointer p1, gconstpointer p2)
 void update_kprobes_display()
 {
 	int i, column;
+	struct kprobes *probe;
+	int header_offset = 2;
+	int current_line = 0;
 
-	set_window_title(center, "Kprobes Top");
-	/*
+	set_window_title(center, "Kprobes Top ");
 	wattron(center, A_BOLD);
 	column = 1;
-	for (i = 0; i < 6; i++) {
-		if (toggle_virt < 0 && (i == 3 || i == 4)) {
-			continue;
-		}
-		if (cputopview[i].sort) {
+	for (i = 0; i < 2; i++) {
+		if (kprobeview[i].sort) {
 			wattron(center, A_UNDERLINE);
 			pref_current_sort = i;
 		}
-		mvwprintw(center, 1, column, cputopview[i].title);
+		mvwprintw(center, 1, column, "%s", kprobeview[i].title);
 		wattroff(center, A_UNDERLINE);
-		column += 10;
+		column += 30;
 	}
 	wattroff(center, A_BOLD);
-	*/
+
+	for (i = 0; i < data->kprobes_table->len; i++) {
+		column = 1;
+		probe = g_ptr_array_index(data->kprobes_table, i);
+		mvwprintw(center, current_line + header_offset, column,
+				"%s", probe->probe_name + 6);
+		column += 30;
+		mvwprintw(center, current_line + header_offset, column,
+				"%d", probe->count);
+		current_line++;
+	}
 }
 
 void update_cputop_display()
@@ -1647,6 +1657,10 @@ void init_view_headers()
 	fileview[1].title = strdup("READ");
 	fileview[1].sort = 1;
 	fileview[2].title = strdup("WRITE");
+
+	kprobeview[0].title = strdup("NAME");
+	kprobeview[1].title = strdup("HIT");
+	kprobeview[1].sort = 1;
 }
 
 void init_ncurses()

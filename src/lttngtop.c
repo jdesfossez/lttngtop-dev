@@ -255,6 +255,22 @@ error:
 	return BT_CB_ERROR_STOP;
 }
 
+enum bt_cb_ret handle_kprobes(struct bt_ctf_event *call_data, void *private_data)
+{
+	int i;
+	struct kprobes *kprobe;
+
+	/* for kprobes */
+	for (i = 0; i < lttngtop.kprobes_table->len; i++) {
+		kprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
+		if (strcmp(bt_ctf_event_name(call_data), kprobe->probe_name) == 0) {
+			kprobe->count++;
+		}
+	}
+
+	return BT_CB_OK;
+}
+
 /*
  * hook on each event to check the timestamp and refresh the display if
  * necessary
@@ -483,6 +499,7 @@ void init_lttngtop()
 	lttngtop.process_table = g_ptr_array_new();
 	lttngtop.files_table = g_ptr_array_new();
 	lttngtop.cpu_table = g_ptr_array_new();
+	lttngtop.kprobes_table = g_ptr_array_new();
 }
 
 void usage(FILE *fp)
@@ -567,7 +584,9 @@ void iter_trace(struct bt_context *bt_ctx)
 {
 	struct bt_ctf_iter *iter;
 	struct bt_iter_pos begin_pos;
+	struct kprobes *kprobe;
 	const struct bt_ctf_event *event;
+	int i;
 	int ret = 0;
 
 	begin_pos.type = BT_SEEK_BEGIN;
@@ -622,6 +641,16 @@ void iter_trace(struct bt_context *bt_ctx)
 					"lttng_statedump_file_descriptor"),
 				NULL, 0, handle_statedump_file_descriptor,
 				NULL, NULL, NULL);
+
+		/* for kprobes */
+		for (i = 0; i < lttngtop.kprobes_table->len; i++) {
+			kprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
+			bt_ctf_iter_add_callback(iter,
+					g_quark_from_static_string(
+						kprobe->probe_name),
+					NULL, 0, handle_kprobes,
+					NULL, NULL, NULL);
+		}
 	}
 
 	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
@@ -985,6 +1014,49 @@ end:
 	return ret;
 }
 
+int enable_kprobes(struct lttng_handle *handle, char *channel_name)
+{
+	struct lttng_event ev;
+	struct kprobes *kprobe;
+	int ret = 0;
+	int i;
+
+	/*
+	kprobe = g_new0(struct kprobes, 1);
+	kprobe->probe_addr = 0;
+	kprobe->probe_offset = 0;
+	asprintf(&kprobe->probe_name, "probe_sys_open");
+	asprintf(&kprobe->symbol_name, "sys_open");
+	g_ptr_array_add(lttngtop.kprobes_table, kprobe);
+
+	kprobe = g_new0(struct kprobes, 1);
+	kprobe->probe_addr = 0;
+	kprobe->probe_offset = 0;
+	asprintf(&kprobe->probe_name, "probe_sys_close");
+	asprintf(&kprobe->symbol_name, "sys_close");
+	g_ptr_array_add(lttngtop.kprobes_table, kprobe);
+	*/
+
+	for (i = 0; i < lttngtop.kprobes_table->len; i++) {
+		kprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
+
+		memset(&ev, '\0', sizeof(struct lttng_event));
+		ev.type = LTTNG_EVENT_PROBE;
+		sprintf(ev.attr.probe.symbol_name, "%s", kprobe->symbol_name);
+		sprintf(ev.name, "%s", kprobe->probe_name);
+		ev.attr.probe.addr = kprobe->probe_addr;
+		ev.attr.probe.offset = kprobe->probe_offset;
+		if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+			fprintf(stderr,"error enabling kprobes : %s\n",
+					helper_lttcomm_get_readable_code(ret));
+			goto end;
+		}
+	}
+
+end:
+	return ret;
+}
+
 int setup_live_tracing()
 {
 	struct lttng_domain dom;
@@ -1078,19 +1150,10 @@ int setup_live_tracing()
 		goto error_session;
 	}
 
-	/*
-	memset(&ev, '\0', sizeof(struct lttng_event));
-	ev.type = LTTNG_EVENT_PROBE;
-	sprintf(ev.attr.probe.symbol_name, "sys_open");
-	sprintf(ev.name, "probe_sys_open");
-	ev.attr.probe.addr = 0;
-	ev.attr.probe.offset = 0;
-	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
-		fprintf(stderr,"error enabling kprobes : %s\n",
-				helper_lttcomm_get_readable_code(ret));
+	ret = enable_kprobes(handle, channel_name);
+	if (ret < 0) {
 		goto error_session;
 	}
-	*/
 
 	kctxpid.ctx = LTTNG_EVENT_CONTEXT_PID;
 	lttng_add_context(handle, &kctxpid, NULL, NULL);
@@ -1147,11 +1210,11 @@ int main(int argc, char **argv)
 			signal(SIGTERM, handle_textdump_sigterm);
 			signal(SIGINT, handle_textdump_sigterm);
 		}
+		init_lttngtop();
 		ret = setup_live_tracing();
 		if (ret < 0) {
 			goto end;
 		}
-		init_lttngtop();
 		if (!opt_textdump) {
 			pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
 			pthread_create(&timer_thread, NULL, refresh_thread, (void *) NULL);
