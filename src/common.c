@@ -145,6 +145,21 @@ char *get_context_comm(const struct bt_ctf_event *event)
 	return comm;
 }
 
+char *get_context_hostname(const struct bt_ctf_event *event)
+{
+	const struct definition *scope;
+	char *hostname;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
+	hostname = bt_ctf_get_char_array(bt_ctf_get_field(event,
+				scope, "_hostname"));
+	if (bt_ctf_field_get_error()) {
+		return NULL;
+	}
+
+	return hostname;
+}
+
 /*
  * To get the parent process, put the pid in the tid field
  * because the parent process gets pid = tid
@@ -163,9 +178,6 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		unsigned long timestamp)
 {
 	struct processtop *newproc;
-
-	if (opt_tid && !lookup_tid_list(tid))
-		return NULL;
 
 	/* if the PID already exists, we just rename the process */
 	/* FIXME : need to integrate with clone/fork/exit to be accurate */
@@ -198,7 +210,7 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 }
 
 struct processtop* update_proc(struct processtop* proc, int pid, int tid,
-		int ppid, int vpid, int vtid, int vppid, char *comm)
+		int ppid, int vpid, int vtid, int vppid, char *comm, char *hostname)
 {
 	if (proc) {
 		proc->pid = pid;
@@ -210,6 +222,12 @@ struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 		if (strcmp(proc->comm, comm) != 0) {
 			free(proc->comm);
 			proc->comm = strdup(comm);
+		}
+		if (hostname) {
+			if (proc->hostname && strcmp(proc->hostname, hostname) != 0) {
+				free(proc->hostname);
+			}
+			proc->hostname = strdup(hostname);
 		}
 	}
 	return proc;
@@ -588,7 +606,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	proc = find_process_tid(&lttngtop, tid, procname);
 	if (proc == NULL)
 		proc = add_proc(&lttngtop, tid, procname, timestamp);
-	update_proc(proc, pid, tid, ppid, vpid, vtid, vppid, procname);
+	update_proc(proc, pid, tid, ppid, vpid, vtid, vppid, procname, NULL);
 
 	if (proc) {
 		free(proc->comm);
@@ -622,4 +640,12 @@ struct tm format_timestamp(uint64_t timestamp)
 int *lookup_tid_list(int tid)
 {
 	return g_hash_table_lookup(tid_list, (gpointer) &tid);
+}
+
+char *lookup_hostname_list(const char *hostname)
+{
+	if (!hostname)
+		return NULL;
+
+	return g_hash_table_lookup(hostname_list, (gpointer) hostname);
 }

@@ -81,6 +81,7 @@ enum {
 	OPT_TEXTDUMP,
 	OPT_PID,
 	OPT_CHILD,
+	OPT_HOSTNAME,
 };
 
 static struct poptOption long_options[] = {
@@ -89,6 +90,7 @@ static struct poptOption long_options[] = {
 	{ "textdump", 't', POPT_ARG_NONE, NULL, OPT_TEXTDUMP, NULL, NULL },
 	{ "child", 'f', POPT_ARG_NONE, NULL, OPT_CHILD, NULL, NULL },
 	{ "pid", 'p', POPT_ARG_STRING, &opt_tid, OPT_PID, NULL, NULL },
+	{ "hostname", 'n', POPT_ARG_STRING, &opt_hostname, OPT_HOSTNAME, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -166,6 +168,7 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	int pid;
 	int64_t syscall_ret;
 	const struct definition *scope;
+	const char *hostname;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
@@ -177,7 +180,13 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		goto error;
 	}
 	
-	if (opt_tid && !lookup_tid_list(pid))
+	hostname = get_context_hostname(call_data);
+	if (!opt_tid && (opt_hostname && !lookup_hostname_list(hostname)))
+		goto end;
+	if (!opt_hostname && (opt_tid && !lookup_tid_list(pid)))
+		goto end;
+	if ((opt_tid && !lookup_tid_list(pid)) &&
+			(opt_hostname && !lookup_hostname_list(hostname)))
 		goto end;
 
 	if (strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) {
@@ -339,7 +348,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	int pid, tid, ppid, vpid, vtid, vppid;
-	char *comm;
+	char *comm, *hostname;
 	struct processtop *parent, *child;
 	unsigned long timestamp;
 
@@ -376,6 +385,8 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	if (!comm) {
 		goto error;
 	}
+	/* optional */
+	hostname = get_context_hostname(call_data);
 
 	/* find or create the current process */
 	child = find_process_tid(&lttngtop, tid, comm);
@@ -383,7 +394,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 		child = add_proc(&lttngtop, tid, comm, timestamp);
 	if (!child)
 		goto end;
-	update_proc(child, pid, tid, ppid, vpid, vtid, vppid, comm);
+	update_proc(child, pid, tid, ppid, vpid, vtid, vppid, comm, hostname);
 
 	if (pid != tid) {
 		/* find or create the parent */
@@ -435,7 +446,13 @@ void init_lttngtop()
 void usage(FILE *fp)
 {
 	fprintf(fp, "LTTngTop %s\n\n", VERSION);
-	fprintf(fp, "Usage : lttngtop /path/to/trace\n");
+	fprintf(fp, "Usage : lttngtop [OPTIONS] [TRACE]\n");
+	fprintf(fp, "  TRACE			Path to the trace to analyse (no trace path for live tracing)\n");
+	fprintf(fp, "  -h, --help               This help message\n");
+	fprintf(fp, "  -t, --textdump           Display live events in text-only\n");
+	fprintf(fp, "  -p, --pid                Comma-separated list of PIDs to display\n");
+	fprintf(fp, "  -f, --child              Follow threads associated with selected PIDs\n");
+	fprintf(fp, "  -n, --hostname           Comma-separated list of hostnames to display (require hostname context in trace)\n");
 }
 
 /*
@@ -466,12 +483,26 @@ static int parse_options(int argc, char **argv)
 				opt_child = 1;
 				break;
 			case OPT_PID:
-				tid_list = g_hash_table_new(g_str_hash, g_str_equal);
+				tid_list = g_hash_table_new(g_str_hash,
+						g_str_equal);
 				tmp_str = strtok(opt_tid, ",");
 				while (tmp_str) {
 					tid = malloc(sizeof(int));
 					*tid = atoi(tmp_str);
-					g_hash_table_insert(tid_list, (gpointer) tid, tid);
+					g_hash_table_insert(tid_list,
+							(gpointer) tid, tid);
+					tmp_str = strtok(NULL, ",");
+				}
+				break;
+			case OPT_HOSTNAME:
+				hostname_list = g_hash_table_new(g_str_hash,
+						g_str_equal);
+				tmp_str = strtok(opt_hostname, ",");
+				while (tmp_str) {
+					char *new_str = strdup(tmp_str);
+					g_hash_table_insert(hostname_list,
+							(gpointer) new_str,
+							(gpointer) new_str);
 					tmp_str = strtok(NULL, ",");
 				}
 				break;
@@ -1015,6 +1046,8 @@ int setup_live_tracing()
 	kctxpid.ctx = LTTNG_EVENT_CONTEXT_VPID;
 	lttng_add_context(handle, &kctxpid, NULL, NULL);
 	kctxtid.ctx = LTTNG_EVENT_CONTEXT_VTID;
+	lttng_add_context(handle, &kctxtid, NULL, NULL);
+	kctxtid.ctx = LTTNG_EVENT_CONTEXT_HOSTNAME;
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
 
 	if ((ret = lttng_start_tracing("test")) < 0) {
