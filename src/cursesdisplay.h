@@ -29,6 +29,7 @@ enum view_list
 	process_details,
 	iostream,
 	tree,
+	kprobes,
 };
 
 enum view_list current_view;
