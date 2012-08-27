@@ -164,9 +164,13 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 {
 	struct processtop *newproc;
 
+	if (opt_pid && tid != opt_pid)
+		return NULL;
+
 	/* if the PID already exists, we just rename the process */
 	/* FIXME : need to integrate with clone/fork/exit to be accurate */
 	newproc = find_process_tid(ctx, tid, comm);
+
 	if (!newproc) {
 		newproc = g_new0(struct processtop, 1);
 		newproc->tid = tid;
@@ -254,6 +258,9 @@ void add_thread(struct processtop *parent, struct processtop *thread)
 {
 	gint i;
 	struct processtop *tmp;
+
+	if (!parent)
+		return;
 
 	for (i = 0; i < parent->threads->len; i++) {
 		tmp = g_ptr_array_index(parent->threads, i);
@@ -583,9 +590,11 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 		proc = add_proc(&lttngtop, tid, procname, timestamp);
 	update_proc(proc, pid, tid, ppid, vpid, vtid, vppid, procname);
 
-	free(proc->comm);
-	proc->comm = strdup(procname);
-	proc->pid = pid;
+	if (proc) {
+		free(proc->comm);
+		proc->comm = strdup(procname);
+		proc->pid = pid;
+	}
 
 	return BT_CB_OK;
 

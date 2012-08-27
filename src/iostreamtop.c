@@ -197,6 +197,10 @@ int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
 
 	tmp = get_proc(ctx, tid, comm, timestamp);
 
+	if (!tmp) {
+		err = -1;
+		goto end;
+	}
 	if (tmp->syscall_info != NULL) {
 		if (tmp->syscall_info->type == __NR_read
 			&& ret > 0) {
@@ -223,6 +227,8 @@ int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
 		g_free(tmp->syscall_info);
 		tmp->syscall_info = NULL;
  	}
+
+end:
 	return err;
 }
 
@@ -329,10 +335,14 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	}
 
 	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	if (!tmp)
+		goto end;
+
 	tmp->syscall_info = create_syscall_info(__NR_write, cpu_id, tid, fd);
 
 	insert_file(tmp, fd);
 
+end:
 	return BT_CB_OK;
 
 error:
@@ -369,10 +379,14 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	}
 
 	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	if (!tmp)
+		goto end;
+
 	tmp->syscall_info = create_syscall_info(__NR_read, cpu_id, tid, fd);
 
 	insert_file(tmp, fd);
 
+end:
 	return BT_CB_OK;
 
 error:
@@ -411,10 +425,14 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	}
 
 	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	if (!tmp)
+		goto end;
+
 	tmp->syscall_info = create_syscall_info(__NR_open, cpu_id, tid, -1);
 
 	tmp->files_history = create_file(tmp->files_history, file);
 
+end:
 	return BT_CB_OK;
 
 error:
@@ -450,9 +468,12 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 	}
 
 	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	if (!tmp)
+		goto end;
 
 	close_file(tmp, fd);
 
+end:
 	return BT_CB_OK;
 
 error:
@@ -502,10 +523,14 @@ enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 	}
 
 	parent = get_proc_pid(&lttngtop, pid, pid, timestamp);
+	if (!parent)
+		goto end;
+
 	parent->files_history = create_file(parent->files_history, file_name);
 	file = parent->files_history->file;
 	edit_file(parent, file, fd);
 
+end:
 	return BT_CB_OK;
 
 error:
