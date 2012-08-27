@@ -181,7 +181,7 @@ void print_fields(struct bt_ctf_event *event)
 			printf("%s", bt_ctf_get_string(list[i]));
 		} else if (type == CTF_TYPE_ARRAY) {
 			str = bt_ctf_get_char_array(list[i]);
-			if (str)
+			if (!bt_ctf_field_get_error() && str)
 				printf("%s", str);
 		}
 	}
@@ -223,7 +223,7 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
 
-	if (strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) {
+	if ((strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) && !last_textdump_print_newline) {
 		scope = bt_ctf_get_top_level_scope(call_data,
 				BT_EVENT_FIELDS);
 		syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
@@ -241,13 +241,12 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 				bt_ctf_event_name(call_data));
 		print_fields(call_data);
 		printf(") ");
-		/*
-		if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) == 0) {
-		} else {
+		if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) != 0) {
 			printf("\n");
+			last_textdump_print_newline = 1;
+		} else {
+			last_textdump_print_newline = 0;
 		}
-		*/
-		last_textdump_print_newline = 0;
 	}
 
 end:
@@ -625,7 +624,7 @@ void iter_trace(struct bt_context *bt_ctx)
 				NULL, NULL, NULL);
 	}
 
-	while ((event = bt_ctf_iter_read_event(iter, NULL)) != NULL) {
+	while ((event = bt_ctf_iter_read_event(iter)) != NULL) {
 		if (quit || reload_trace)
 			goto end_iter;
 		ret = bt_iter_next(bt_ctf_get_iter(iter));
@@ -1071,12 +1070,27 @@ int setup_live_tracing()
 		goto error_session;
 	}
 
+	memset(&ev, '\0', sizeof(struct lttng_event));
 	ev.type = LTTNG_EVENT_SYSCALL;
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
 		fprintf(stderr,"error enabling syscalls : %s\n",
 				helper_lttcomm_get_readable_code(ret));
 		goto error_session;
 	}
+
+	/*
+	memset(&ev, '\0', sizeof(struct lttng_event));
+	ev.type = LTTNG_EVENT_PROBE;
+	sprintf(ev.attr.probe.symbol_name, "sys_open");
+	sprintf(ev.name, "probe_sys_open");
+	ev.attr.probe.addr = 0;
+	ev.attr.probe.offset = 0;
+	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+		fprintf(stderr,"error enabling kprobes : %s\n",
+				helper_lttcomm_get_readable_code(ret));
+		goto error_session;
+	}
+	*/
 
 	kctxpid.ctx = LTTNG_EVENT_CONTEXT_PID;
 	lttng_add_context(handle, &kctxpid, NULL, NULL);

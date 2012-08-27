@@ -520,6 +520,30 @@ gint sort_by_cpu_group_by_threads_desc(gconstpointer p1, gconstpointer p2)
 	return -1;
 }
 
+void update_kprobes_display()
+{
+	int i, column;
+
+	set_window_title(center, "Kprobes Top");
+	/*
+	wattron(center, A_BOLD);
+	column = 1;
+	for (i = 0; i < 6; i++) {
+		if (toggle_virt < 0 && (i == 3 || i == 4)) {
+			continue;
+		}
+		if (cputopview[i].sort) {
+			wattron(center, A_UNDERLINE);
+			pref_current_sort = i;
+		}
+		mvwprintw(center, 1, column, cputopview[i].title);
+		wattroff(center, A_UNDERLINE);
+		column += 10;
+	}
+	wattroff(center, A_BOLD);
+	*/
+}
+
 void update_cputop_display()
 {
 	int i;
@@ -992,6 +1016,9 @@ void update_current_view()
 		break;
 	case tree:
 		update_cputop_display();
+		break;
+	case kprobes:
+		update_kprobes_display();
 		break;
 	default:
 		break;
@@ -1548,6 +1575,13 @@ void *handle_keyboard(void *p)
 			if (pref_panel_visible)
 				toggle_pref_panel();
 			current_view = iostream;
+			selected_line = 0;
+			update_current_view();
+			break;
+		case KEY_F(5):
+			if (pref_panel_visible)
+				toggle_pref_panel();
+			current_view = kprobes;
 			selected_line = 0;
 			update_current_view();
 			break;
