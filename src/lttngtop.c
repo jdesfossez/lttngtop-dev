@@ -156,6 +156,37 @@ void *ncurses_display(void *p)
 	}
 }
 
+void print_fields(struct bt_ctf_event *event)
+{
+	unsigned int cnt, i;
+	const struct definition *const * list;
+	const struct definition *scope;
+	enum ctf_type_id type;
+	const char *str;
+
+	scope = bt_ctf_get_top_level_scope(event, BT_EVENT_FIELDS);
+
+	bt_ctf_get_field_list(event, scope, &list, &cnt);
+	for (i = 0; i < cnt; i++) {
+		if (i != 0)
+			printf(", ");
+		printf("%s = ", bt_ctf_field_name(list[i]));
+		type = bt_ctf_field_type(list[i]);
+		if (type == CTF_TYPE_INTEGER) {
+			if (bt_ctf_get_int_signedness(list[i]) == 0)
+				printf("%" PRIu64 "", bt_ctf_get_uint64(list[i]));
+			else
+				printf("%" PRId64 "", bt_ctf_get_int64(list[i]));
+		} else if (type == CTF_TYPE_STRING) {
+			printf("%s", bt_ctf_get_string(list[i]));
+		} else if (type == CTF_TYPE_ARRAY) {
+			str = bt_ctf_get_char_array(list[i]);
+			if (str)
+				printf("%s", str);
+		}
+	}
+}
+
 /*
  * hook on each event to check the timestamp and refresh the display if
  * necessary
@@ -165,10 +196,10 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	unsigned long timestamp;
 	struct tm start;
 	uint64_t ts_nsec_start;
-	int pid;
+	int pid, cpu_id;
 	int64_t syscall_ret;
 	const struct definition *scope;
-	const char *hostname;
+	const char *hostname, *procname;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
@@ -189,6 +220,9 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 			(opt_hostname && !lookup_hostname_list(hostname)))
 		goto end;
 
+	cpu_id = get_cpu_id(call_data);
+	procname = get_context_comm(call_data);
+
 	if (strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) {
 		scope = bt_ctf_get_top_level_scope(call_data,
 				BT_EVENT_FIELDS);
@@ -201,9 +235,18 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		 * print the newline in this case */
 		if (last_textdump_print_newline == 0)
 			printf("\n");
-		printf("%02d:%02d:%02d.%09" PRIu64 " %d : %s ", start.tm_hour,
-				start.tm_min, start.tm_sec, ts_nsec_start,
-				pid, bt_ctf_event_name(call_data));
+		printf("%02d:%02d:%02d.%09" PRIu64 " (%s) (cpu %d) [%s (%d)] %s (",
+				start.tm_hour, start.tm_min, start.tm_sec,
+				ts_nsec_start, hostname, cpu_id, procname, pid,
+				bt_ctf_event_name(call_data));
+		print_fields(call_data);
+		printf(") ");
+		/*
+		if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) == 0) {
+		} else {
+			printf("\n");
+		}
+		*/
 		last_textdump_print_newline = 0;
 	}
 
