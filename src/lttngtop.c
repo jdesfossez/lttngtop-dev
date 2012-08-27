@@ -90,6 +90,12 @@ static struct poptOption long_options[] = {
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
+static void handle_textdump_sigterm(int signal)
+{
+	quit = 1;
+	lttng_destroy_session("test");
+}
+
 void *refresh_thread(void *p)
 {
 	struct mmap_stream *mmap_info;
@@ -1034,6 +1040,10 @@ int main(int argc, char **argv)
 	}
 
 	if (!opt_input_path) {
+		if (opt_textdump) {
+			signal(SIGTERM, handle_textdump_sigterm);
+			signal(SIGINT, handle_textdump_sigterm);
+		}
 		ret = setup_live_tracing();
 		if (ret < 0) {
 			goto end;
