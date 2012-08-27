@@ -164,7 +164,7 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 {
 	struct processtop *newproc;
 
-	if (opt_pid && tid != opt_pid)
+	if (opt_tid && !lookup_tid_list(tid))
 		return NULL;
 
 	/* if the PID already exists, we just rename the process */
@@ -617,4 +617,9 @@ struct tm format_timestamp(uint64_t timestamp)
 	localtime_r(&time_s, &tm);
 
 	return tm;
+}
+
+int *lookup_tid_list(int tid)
+{
+	return g_hash_table_lookup(tid_list, (gpointer) &tid);
 }

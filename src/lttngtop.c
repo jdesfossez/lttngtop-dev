@@ -73,6 +73,8 @@ GPtrArray *available_snapshots;
 sem_t metadata_available;
 int reload_trace = 0;
 
+int last_textdump_print_newline = 1;
+
 enum {
 	OPT_NONE = 0,
 	OPT_HELP,
@@ -86,7 +88,7 @@ static struct poptOption long_options[] = {
 	{ "help", 'h', POPT_ARG_NONE, NULL, OPT_HELP, NULL, NULL },
 	{ "textdump", 't', POPT_ARG_NONE, NULL, OPT_TEXTDUMP, NULL, NULL },
 	{ "child", 'f', POPT_ARG_NONE, NULL, OPT_CHILD, NULL, NULL },
-	{ "pid", 'p', POPT_ARG_INT, &opt_pid, OPT_PID, NULL, NULL },
+	{ "pid", 'p', POPT_ARG_STRING, &opt_tid, OPT_PID, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -171,11 +173,11 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	ts_nsec_start = timestamp % NSEC_PER_SEC;
 
 	pid = get_context_pid(call_data);
-	if (pid == -1ULL && opt_pid) {
+	if (pid == -1ULL && opt_tid) {
 		goto error;
 	}
 	
-	if (opt_pid && opt_pid != pid)
+	if (opt_tid && !lookup_tid_list(pid))
 		goto end;
 
 	if (strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) {
@@ -184,10 +186,16 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 					scope, "_ret"));
 		printf("= %ld\n", syscall_ret);
+		last_textdump_print_newline = 1;
 	} else {
+		/* we might have lost the exit_syscall event, so need to
+		 * print the newline in this case */
+		if (last_textdump_print_newline == 0)
+			printf("\n");
 		printf("%02d:%02d:%02d.%09" PRIu64 " %d : %s ", start.tm_hour,
 				start.tm_min, start.tm_sec, ts_nsec_start,
 				pid, bt_ctf_event_name(call_data));
+		last_textdump_print_newline = 0;
 	}
 
 end:
@@ -438,6 +446,8 @@ static int parse_options(int argc, char **argv)
 {
 	poptContext pc;
 	int opt, ret = 0;
+	char *tmp_str;
+	int *tid;
 
 	pc = poptGetContext(NULL, argc, (const char **) argv, long_options, 0);
 	poptReadDefaultConfig(pc, 0);
@@ -456,7 +466,14 @@ static int parse_options(int argc, char **argv)
 				opt_child = 1;
 				break;
 			case OPT_PID:
-				//opt_textdump = 1;
+				tid_list = g_hash_table_new(g_str_hash, g_str_equal);
+				tmp_str = strtok(opt_tid, ",");
+				while (tmp_str) {
+					tid = malloc(sizeof(int));
+					*tid = atoi(tmp_str);
+					g_hash_table_insert(tid_list, (gpointer) tid, tid);
+					tmp_str = strtok(NULL, ",");
+				}
 				break;
 			default:
 				ret = -EINVAL;
@@ -954,7 +971,7 @@ int setup_live_tracing()
 
 	strcpy(chan.name, channel_name);
 	chan.attr.overwrite = 0;
-	if (opt_pid && opt_textdump) {
+	if (opt_tid && opt_textdump) {
 		chan.attr.subbuf_size = 32768;
 		chan.attr.num_subbuf = 8;
 	} else {
@@ -973,14 +990,12 @@ int setup_live_tracing()
 
 	memset(&ev, '\0', sizeof(struct lttng_event));
 	//sprintf(ev.name, "sched_switch");
-//	if (!opt_pid) {
-		ev.type = LTTNG_EVENT_TRACEPOINT;
-		if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
-			fprintf(stderr,"error enabling event : %s\n",
-					helper_lttcomm_get_readable_code(ret));
-			goto error_session;
-		}
-//	}
+	ev.type = LTTNG_EVENT_TRACEPOINT;
+	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+		fprintf(stderr,"error enabling event : %s\n",
+				helper_lttcomm_get_readable_code(ret));
+		goto error_session;
+	}
 
 	ev.type = LTTNG_EVENT_SYSCALL;
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
@@ -993,16 +1008,14 @@ int setup_live_tracing()
 	lttng_add_context(handle, &kctxpid, NULL, NULL);
 	kctxtid.ctx = LTTNG_EVENT_CONTEXT_TID;
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
-//	if (!opt_pid) {
-		kctxppid.ctx = LTTNG_EVENT_CONTEXT_PPID;
-		lttng_add_context(handle, &kctxppid, NULL, NULL);
-		kctxcomm.ctx = LTTNG_EVENT_CONTEXT_PROCNAME;
-		lttng_add_context(handle, &kctxcomm, NULL, NULL);
-		kctxpid.ctx = LTTNG_EVENT_CONTEXT_VPID;
-		lttng_add_context(handle, &kctxpid, NULL, NULL);
-		kctxtid.ctx = LTTNG_EVENT_CONTEXT_VTID;
-		lttng_add_context(handle, &kctxtid, NULL, NULL);
-//	}
+	kctxppid.ctx = LTTNG_EVENT_CONTEXT_PPID;
+	lttng_add_context(handle, &kctxppid, NULL, NULL);
+	kctxcomm.ctx = LTTNG_EVENT_CONTEXT_PROCNAME;
+	lttng_add_context(handle, &kctxcomm, NULL, NULL);
+	kctxpid.ctx = LTTNG_EVENT_CONTEXT_VPID;
+	lttng_add_context(handle, &kctxpid, NULL, NULL);
+	kctxtid.ctx = LTTNG_EVENT_CONTEXT_VTID;
+	lttng_add_context(handle, &kctxtid, NULL, NULL);
 
 	if ((ret = lttng_start_tracing("test")) < 0) {
 		fprintf(stderr,"error starting tracing : %s\n",

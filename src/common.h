@@ -31,7 +31,8 @@ sem_t goodtodisplay, goodtoupdate, timer, pause_sem, end_trace_sem, bootstrap;
 GPtrArray *copies; /* struct lttngtop */
 GHashTable *global_perf_liszt;
 
-int opt_pid;
+char *opt_tid;
+GHashTable *tid_list;
 
 extern int quit;
 
@@ -74,5 +75,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 					      void *private_data);
 
 struct tm format_timestamp(uint64_t timestamp);
+
+int *lookup_tid_list(int tid);
 
 #endif /* _COMMON_H */
