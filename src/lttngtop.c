@@ -52,7 +52,6 @@
 
 const char *opt_input_path;
 static int opt_textdump;
-static int opt_pid;
 static int opt_child;
 
 int quit = 0;
@@ -338,6 +337,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	if (pid == -1ULL) {
 		goto error;
 	}
+
 	tid = get_context_tid(call_data);
 	if (tid == -1ULL) {
 		goto error;
@@ -367,6 +367,8 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	child = find_process_tid(&lttngtop, tid, comm);
 	if (!child)
 		child = add_proc(&lttngtop, tid, comm, timestamp);
+	if (!child)
+		goto end;
 	update_proc(child, pid, tid, ppid, vpid, vtid, vppid, comm);
 
 	if (pid != tid) {
@@ -374,7 +376,8 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 		parent = find_process_tid(&lttngtop, pid, comm);
 		if (!parent) {
 			parent = add_proc(&lttngtop, pid, comm, timestamp);
-			parent->pid = pid;
+			if (parent)
+				parent->pid = pid;
 		}
 
 		/* attach the parent to the current process */
@@ -384,6 +387,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 
 	update_perf_counter(child, call_data);
 
+end:
 	return BT_CB_OK;
 
 error:
@@ -446,8 +450,7 @@ static int parse_options(int argc, char **argv)
 				opt_child = 1;
 				break;
 			case OPT_PID:
-				refresh_display = 0.1 * NSEC_PER_SEC;
-				opt_textdump = 1;
+				//opt_textdump = 1;
 				break;
 			default:
 				ret = -EINVAL;
@@ -475,9 +478,6 @@ void iter_trace(struct bt_context *bt_ctx)
 	iter = bt_ctf_iter_create(bt_ctx, &begin_pos, NULL);
 
 	if (opt_textdump) {
-		if (opt_pid) {
-			printf("PID : %d, Child : %d\n", opt_pid, opt_child);
-		}
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 				print_timestamp,
 				NULL, NULL, NULL);
@@ -948,7 +948,7 @@ int setup_live_tracing()
 
 	strcpy(chan.name, channel_name);
 	chan.attr.overwrite = 0;
-	if (opt_pid) {
+	if (opt_pid && opt_textdump) {
 		chan.attr.subbuf_size = 32768;
 		chan.attr.num_subbuf = 8;
 	} else {
@@ -967,14 +967,14 @@ int setup_live_tracing()
 
 	memset(&ev, '\0', sizeof(struct lttng_event));
 	//sprintf(ev.name, "sched_switch");
-	if (!opt_pid) {
+//	if (!opt_pid) {
 		ev.type = LTTNG_EVENT_TRACEPOINT;
 		if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
 			fprintf(stderr,"error enabling event : %s\n",
 					helper_lttcomm_get_readable_code(ret));
 			goto error_session;
 		}
-	}
+//	}
 
 	ev.type = LTTNG_EVENT_SYSCALL;
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
@@ -987,7 +987,7 @@ int setup_live_tracing()
 	lttng_add_context(handle, &kctxpid, NULL, NULL);
 	kctxtid.ctx = LTTNG_EVENT_CONTEXT_TID;
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
-	if (!opt_pid) {
+//	if (!opt_pid) {
 		kctxppid.ctx = LTTNG_EVENT_CONTEXT_PPID;
 		lttng_add_context(handle, &kctxppid, NULL, NULL);
 		kctxcomm.ctx = LTTNG_EVENT_CONTEXT_PROCNAME;
@@ -996,7 +996,7 @@ int setup_live_tracing()
 		lttng_add_context(handle, &kctxpid, NULL, NULL);
 		kctxtid.ctx = LTTNG_EVENT_CONTEXT_VTID;
 		lttng_add_context(handle, &kctxtid, NULL, NULL);
-	}
+//	}
 
 	if ((ret = lttng_start_tracing("test")) < 0) {
 		fprintf(stderr,"error starting tracing : %s\n",

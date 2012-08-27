@@ -31,6 +31,8 @@ sem_t goodtodisplay, goodtoupdate, timer, pause_sem, end_trace_sem, bootstrap;
 GPtrArray *copies; /* struct lttngtop */
 GHashTable *global_perf_liszt;
 
+int opt_pid;
+
 extern int quit;
 
 struct lttngtop *data;
