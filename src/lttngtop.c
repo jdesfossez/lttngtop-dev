@@ -82,6 +82,7 @@ enum {
 	OPT_PID,
 	OPT_CHILD,
 	OPT_HOSTNAME,
+	OPT_KPROBES,
 };
 
 static struct poptOption long_options[] = {
@@ -91,6 +92,7 @@ static struct poptOption long_options[] = {
 	{ "child", 'f', POPT_ARG_NONE, NULL, OPT_CHILD, NULL, NULL },
 	{ "pid", 'p', POPT_ARG_STRING, &opt_tid, OPT_PID, NULL, NULL },
 	{ "hostname", 'n', POPT_ARG_STRING, &opt_hostname, OPT_HOSTNAME, NULL, NULL },
+	{ "kprobes", 'k', POPT_ARG_STRING, &opt_kprobes, OPT_KPROBES, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -223,7 +225,8 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
 
-	if ((strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) && !last_textdump_print_newline) {
+	if ((strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) &&
+			!last_textdump_print_newline) {
 		scope = bt_ctf_get_top_level_scope(call_data,
 				BT_EVENT_FIELDS);
 		syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
@@ -499,7 +502,6 @@ void init_lttngtop()
 	lttngtop.process_table = g_ptr_array_new();
 	lttngtop.files_table = g_ptr_array_new();
 	lttngtop.cpu_table = g_ptr_array_new();
-	lttngtop.kprobes_table = g_ptr_array_new();
 }
 
 void usage(FILE *fp)
@@ -512,6 +514,81 @@ void usage(FILE *fp)
 	fprintf(fp, "  -p, --pid                Comma-separated list of PIDs to display\n");
 	fprintf(fp, "  -f, --child              Follow threads associated with selected PIDs\n");
 	fprintf(fp, "  -n, --hostname           Comma-separated list of hostnames to display (require hostname context in trace)\n");
+}
+
+/*
+ * Parse probe options.
+ * Shamelessly stolen from lttng-tools :
+ * src/bin/lttng/commands/enable_events.c
+ */
+static struct kprobes *parse_probe_opts(char *opt)
+{
+	char s_hex[19];
+	char name[LTTNG_SYMBOL_NAME_LEN];
+	struct kprobes *kprobe;
+	int ret;
+
+	/*
+	kprobe->probe_addr = 0;
+	kprobe->probe_offset = 0;
+	asprintf(&kprobe->probe_name, "probe_sys_open");
+	asprintf(&kprobe->symbol_name, "sys_open");
+	*/
+
+	if (opt == NULL) {
+		kprobe = NULL;
+		goto end;
+	}
+
+	kprobe = g_new0(struct kprobes, 1);
+
+	/* Check for symbol+offset */
+	ret = sscanf(opt, "%[^'+']+%s", name, s_hex);
+	if (ret == 2) {
+		asprintf(&kprobe->probe_name, "probe_%s", name);
+		asprintf(&kprobe->symbol_name, "%s", name);
+
+		if (strlen(s_hex) == 0) {
+			fprintf(stderr, "Invalid probe offset %s", s_hex);
+			ret = -1;
+			goto end;
+		}
+		kprobe->probe_offset = strtoul(s_hex, NULL, 0);
+		kprobe->probe_addr = 0;
+		goto end;
+	}
+
+	/* Check for symbol */
+	if (isalpha(name[0])) {
+		ret = sscanf(opt, "%s", name);
+		if (ret == 1) {
+			asprintf(&kprobe->probe_name, "probe_%s", name);
+			asprintf(&kprobe->symbol_name, "%s", name);
+			kprobe->probe_offset = 0;
+			kprobe->probe_addr = 0;
+			goto end;
+		}
+	}
+
+	/* Check for address */
+	ret = sscanf(opt, "%s", s_hex);
+	if (ret > 0) {
+		if (strlen(s_hex) == 0) {
+			fprintf(stderr, "Invalid probe address %s", s_hex);
+			ret = -1;
+			goto end;
+		}
+		asprintf(&kprobe->probe_name, "probe_%s", s_hex);
+		kprobe->probe_offset = 0;
+		kprobe->probe_addr = strtoul(s_hex, NULL, 0);
+		goto end;
+	}
+
+	/* No match */
+	kprobe = NULL;
+
+end:
+	return kprobe;
 }
 
 /*
@@ -562,6 +639,24 @@ static int parse_options(int argc, char **argv)
 					g_hash_table_insert(hostname_list,
 							(gpointer) new_str,
 							(gpointer) new_str);
+					tmp_str = strtok(NULL, ",");
+				}
+				break;
+			case OPT_KPROBES:
+				lttngtop.kprobes_table = g_ptr_array_new();
+				tmp_str = strtok(opt_kprobes, ",");
+				while (tmp_str) {
+					struct kprobes *kprobe;
+
+					kprobe = parse_probe_opts(tmp_str);
+					if (kprobe) {
+						g_ptr_array_add(
+							lttngtop.kprobes_table,
+							kprobe);
+					} else {
+						ret = -EINVAL;
+						goto end;
+					}
 					tmp_str = strtok(NULL, ",");
 				}
 				break;
@@ -1021,28 +1116,13 @@ int enable_kprobes(struct lttng_handle *handle, char *channel_name)
 	int ret = 0;
 	int i;
 
-	/*
-	kprobe = g_new0(struct kprobes, 1);
-	kprobe->probe_addr = 0;
-	kprobe->probe_offset = 0;
-	asprintf(&kprobe->probe_name, "probe_sys_open");
-	asprintf(&kprobe->symbol_name, "sys_open");
-	g_ptr_array_add(lttngtop.kprobes_table, kprobe);
-
-	kprobe = g_new0(struct kprobes, 1);
-	kprobe->probe_addr = 0;
-	kprobe->probe_offset = 0;
-	asprintf(&kprobe->probe_name, "probe_sys_close");
-	asprintf(&kprobe->symbol_name, "sys_close");
-	g_ptr_array_add(lttngtop.kprobes_table, kprobe);
-	*/
-
 	for (i = 0; i < lttngtop.kprobes_table->len; i++) {
 		kprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
 
 		memset(&ev, '\0', sizeof(struct lttng_event));
 		ev.type = LTTNG_EVENT_PROBE;
-		sprintf(ev.attr.probe.symbol_name, "%s", kprobe->symbol_name);
+		if (kprobe->symbol_name)
+			sprintf(ev.attr.probe.symbol_name, "%s", kprobe->symbol_name);
 		sprintf(ev.name, "%s", kprobe->probe_name);
 		ev.attr.probe.addr = kprobe->probe_addr;
 		ev.attr.probe.offset = kprobe->probe_offset;

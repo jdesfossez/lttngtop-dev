@@ -33,6 +33,7 @@ GHashTable *global_perf_liszt;
 
 char *opt_tid;
 char *opt_hostname;
+char *opt_kprobes;
 GHashTable *tid_list;
 GHashTable *hostname_list;
 
