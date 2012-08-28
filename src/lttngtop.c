@@ -1230,9 +1230,11 @@ int setup_live_tracing()
 		goto error_session;
 	}
 
-	ret = enable_kprobes(handle, channel_name);
-	if (ret < 0) {
-		goto error_session;
+	if (lttngtop.kprobes_table) {
+		ret = enable_kprobes(handle, channel_name);
+		if (ret < 0) {
+			goto error_session;
+		}
 	}
 
 	kctxpid.ctx = LTTNG_EVENT_CONTEXT_PID;
@@ -1276,6 +1278,7 @@ int main(int argc, char **argv)
 	struct mmap_stream *mmap_info;
 	unsigned long mmap_len;
 
+	init_lttngtop();
 	ret = parse_options(argc, argv);
 	if (ret < 0) {
 		fprintf(stdout, "Error parsing options.\n\n");
@@ -1290,7 +1293,6 @@ int main(int argc, char **argv)
 			signal(SIGTERM, handle_textdump_sigterm);
 			signal(SIGINT, handle_textdump_sigterm);
 		}
-		init_lttngtop();
 		ret = setup_live_tracing();
 		if (ret < 0) {
 			goto end;
@@ -1335,7 +1337,7 @@ int main(int argc, char **argv)
 
 		goto end;
 	} else {
-		init_lttngtop();
+		//init_lttngtop();
 
 		bt_ctx = bt_context_create();
 		ret = bt_context_add_traces_recursive(bt_ctx, opt_input_path, "ctf", NULL);
