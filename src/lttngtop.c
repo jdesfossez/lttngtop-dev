@@ -514,6 +514,7 @@ void usage(FILE *fp)
 	fprintf(fp, "  -p, --pid                Comma-separated list of PIDs to display\n");
 	fprintf(fp, "  -f, --child              Follow threads associated with selected PIDs\n");
 	fprintf(fp, "  -n, --hostname           Comma-separated list of hostnames to display (require hostname context in trace)\n");
+	fprintf(fp, "  -k, --kprobes            Comma-separated list of kprobes to insert (same format as lttng enable-event)\n");
 }
 
 /*
