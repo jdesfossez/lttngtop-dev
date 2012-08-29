@@ -30,12 +30,15 @@ sem_t goodtodisplay, goodtoupdate, timer, pause_sem, end_trace_sem, bootstrap;
 
 GPtrArray *copies; /* struct lttngtop */
 GHashTable *global_perf_liszt;
+GHashTable *global_filter_list;
 
 char *opt_tid;
 char *opt_hostname;
 char *opt_kprobes;
 GHashTable *tid_list;
 GHashTable *hostname_list;
+
+int toggle_filter;
 
 extern int quit;
 
@@ -81,7 +84,10 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 
 struct tm format_timestamp(uint64_t timestamp);
 
+int *lookup_filter_tid_list(int tid);
 int *lookup_tid_list(int tid);
 char *lookup_hostname_list(const char *hostname);
+void add_filter_tid_list(int tid, struct processtop *newproc);
+void remove_filter_tid_list(int tid);
 
 #endif /* _COMMON_H */

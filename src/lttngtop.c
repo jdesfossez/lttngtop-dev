@@ -214,6 +214,11 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	}
 	
 	hostname = get_context_hostname(call_data);
+	if (opt_tid || opt_hostname)
+		if (!lookup_filter_tid_list(pid))
+			goto end;
+
+	/*
 	if (!opt_tid && (opt_hostname && !lookup_hostname_list(hostname)))
 		goto end;
 	if (!opt_hostname && (opt_tid && !lookup_tid_list(pid)))
@@ -221,6 +226,7 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	if ((opt_tid && !lookup_tid_list(pid)) &&
 			(opt_hostname && !lookup_hostname_list(hostname)))
 		goto end;
+		*/
 
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
@@ -484,6 +490,7 @@ void init_lttngtop()
 {
 	copies = g_ptr_array_new();
 	global_perf_liszt = g_hash_table_new(g_str_hash, g_str_equal);
+	global_filter_list = g_hash_table_new(g_str_hash, g_str_equal);
 
 	sem_init(&goodtodisplay, 0, 0);
 	sem_init(&goodtoupdate, 0, 1);
@@ -502,6 +509,8 @@ void init_lttngtop()
 	lttngtop.process_table = g_ptr_array_new();
 	lttngtop.files_table = g_ptr_array_new();
 	lttngtop.cpu_table = g_ptr_array_new();
+
+	toggle_filter = -1;
 }
 
 void usage(FILE *fp)
@@ -620,6 +629,7 @@ static int parse_options(int argc, char **argv)
 				opt_child = 1;
 				break;
 			case OPT_PID:
+				toggle_filter = 1;
 				tid_list = g_hash_table_new(g_str_hash,
 						g_str_equal);
 				tmp_str = strtok(opt_tid, ",");
@@ -632,6 +642,7 @@ static int parse_options(int argc, char **argv)
 				}
 				break;
 			case OPT_HOSTNAME:
+				toggle_filter = 1;
 				hostname_list = g_hash_table_new(g_str_hash,
 						g_str_equal);
 				tmp_str = strtok(opt_hostname, ",");
@@ -688,6 +699,10 @@ void iter_trace(struct bt_context *bt_ctx)
 	begin_pos.type = BT_SEEK_BEGIN;
 	iter = bt_ctf_iter_create(bt_ctx, &begin_pos, NULL);
 
+	/* at each event, verify the status of the process table */
+	bt_ctf_iter_add_callback(iter, 0, NULL, 0,
+			fix_process_table,
+			NULL, NULL, NULL);
 	if (opt_textdump) {
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 				print_timestamp,
@@ -696,10 +711,6 @@ void iter_trace(struct bt_context *bt_ctx)
 		/* at each event check if we need to refresh */
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 				check_timestamp,
-				NULL, NULL, NULL);
-		/* at each event, verify the status of the process table */
-		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
-				fix_process_table,
 				NULL, NULL, NULL);
 		/* to handle the scheduling events */
 		bt_ctf_iter_add_callback(iter,
@@ -739,13 +750,15 @@ void iter_trace(struct bt_context *bt_ctx)
 				NULL, NULL, NULL);
 
 		/* for kprobes */
-		for (i = 0; i < lttngtop.kprobes_table->len; i++) {
-			kprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
-			bt_ctf_iter_add_callback(iter,
-					g_quark_from_static_string(
-						kprobe->probe_name),
-					NULL, 0, handle_kprobes,
-					NULL, NULL, NULL);
+		if (lttngtop.kprobes_table) {
+			for (i = 0; i < lttngtop.kprobes_table->len; i++) {
+				kprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
+				bt_ctf_iter_add_callback(iter,
+						g_quark_from_static_string(
+							kprobe->probe_name),
+						NULL, 0, handle_kprobes,
+						NULL, NULL, NULL);
+			}
 		}
 	}
 
