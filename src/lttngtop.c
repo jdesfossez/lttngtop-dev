@@ -1214,7 +1214,8 @@ int setup_live_tracing()
 		chan.attr.subbuf_size = 32768;
 		chan.attr.num_subbuf = 8;
 	} else {
-		chan.attr.subbuf_size = 1048576; /* 1MB */
+		//chan.attr.subbuf_size = 1048576; /* 1MB */
+		chan.attr.subbuf_size = 2097152; /* 1MB */
 		chan.attr.num_subbuf = 4;
 	}
 	chan.attr.switch_timer_interval = 0;

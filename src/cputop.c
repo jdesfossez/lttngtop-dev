@@ -55,7 +55,7 @@ enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
 	uint64_t cpu_id;
 	char *prev_comm, *next_comm;
 	int prev_tid, next_tid;
-	char *hostname;
+	char *hostname = NULL;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -90,7 +90,6 @@ enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
 		fprintf(stderr, "Missing next_tid context info\n");
 		goto error;
 	}
-	hostname = get_context_hostname(call_data);
 
 	cpu_id = get_cpu_id(call_data);
 
