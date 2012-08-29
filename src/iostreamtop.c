@@ -189,13 +189,14 @@ void show_history(struct file_history *history)
 }
 
 int update_iostream_ret(struct lttngtop *ctx, int tid, char *comm,
-		unsigned long timestamp, uint64_t cpu_id, int ret)
+		unsigned long timestamp, uint64_t cpu_id, int ret,
+		char *hostname)
 {
 	struct processtop *tmp;
 	struct files *tmpfile;
 	int err = 0;
 
-	tmp = get_proc(ctx, tid, comm, timestamp);
+	tmp = get_proc(ctx, tid, comm, timestamp, hostname);
 
 	if (!tmp) {
 		err = -1;
@@ -271,6 +272,7 @@ enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 	char *comm;
 	uint64_t ret, tid;
 	uint64_t cpu_id;
+	char *hostname;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -289,13 +291,15 @@ enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 	}
 
 	cpu_id = get_cpu_id(call_data);
+	hostname = get_context_hostname(call_data);
 
 	/*
 	 * if we encounter an exit_syscall and
 	 * it is not for a syscall read or write
 	 * we just abort the execution of this callback
 	 */
-	if ((update_iostream_ret(&lttngtop, tid, comm, timestamp, cpu_id, ret)) < 0)
+	if ((update_iostream_ret(&lttngtop, tid, comm, timestamp, cpu_id,
+					ret, hostname)) < 0)
 		return BT_CB_ERROR_CONTINUE;
 
 	return BT_CB_OK;
@@ -313,7 +317,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	unsigned long timestamp;
 	uint64_t cpu_id;
 	int64_t tid;
-	char *procname;
+	char *procname, *hostname;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -324,6 +328,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 	cpu_id = get_cpu_id(call_data);
 
 	procname = get_context_comm(call_data);
+	hostname = get_context_hostname(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -334,7 +339,7 @@ enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp, hostname);
 	if (!tmp)
 		goto end;
 
@@ -359,6 +364,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	int64_t tid;
 	char *procname;
 	int fd;
+	char *hostname;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -368,6 +374,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 	cpu_id = get_cpu_id(call_data);
 
 	procname = get_context_comm(call_data);
+	hostname = get_context_hostname(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -378,7 +385,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp, hostname);
 	if (!tmp)
 		goto end;
 
@@ -403,7 +410,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	unsigned long timestamp;
 	uint64_t cpu_id;
 	int64_t tid;
-	char *procname;
+	char *procname, *hostname;
 	char *file;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -414,6 +421,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 	cpu_id = get_cpu_id(call_data);
 
 	procname = get_context_comm(call_data);
+	hostname = get_context_hostname(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -424,7 +432,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp, hostname);
 	if (!tmp)
 		goto end;
 
@@ -449,6 +457,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 	int64_t tid;
 	char *procname;
 	int fd;
+	char *hostname;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -457,6 +466,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 	tid = get_context_tid(call_data);
 
 	procname = get_context_comm(call_data);
+	hostname = get_context_hostname(call_data);
 
 	scope = bt_ctf_get_top_level_scope(call_data,
 			BT_EVENT_FIELDS);
@@ -467,7 +477,7 @@ enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		goto error;
 	}
 
-	tmp = get_proc(&lttngtop, tid, procname, timestamp);
+	tmp = get_proc(&lttngtop, tid, procname, timestamp, hostname);
 	if (!tmp)
 		goto end;
 
@@ -488,7 +498,7 @@ enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 	struct files *file;
 	unsigned long timestamp;
 	int64_t pid;
-	char *file_name;
+	char *file_name, *hostname;
 	int fd;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
@@ -521,8 +531,9 @@ enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 		fprintf(stderr, "Missing file name context info\n");
 		goto error;
 	}
+	hostname = get_context_hostname(call_data);
 
-	parent = get_proc_pid(&lttngtop, pid, pid, timestamp);
+	parent = get_proc_pid(&lttngtop, pid, pid, timestamp, hostname);
 	if (!parent)
 		goto end;
 

@@ -1494,8 +1494,6 @@ void *handle_keyboard(void *p)
 				update_selected_processes();
 				if (toggle_filter > 0) {
 					max_elements = g_hash_table_size(global_filter_list);
-					fprintf(stderr, "select : %d, max : %d\n",
-							selected_line, max_elements);
 					if (selected_line >= max_elements)
 						selected_line = max_elements - 1;
 				}
