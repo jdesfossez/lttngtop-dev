@@ -190,4 +190,8 @@ struct kprobes {
 	int count;
 };
 
+struct hosts {
+	char *hostname;
+};
+
 #endif /* LTTNGTOPTYPES_H */

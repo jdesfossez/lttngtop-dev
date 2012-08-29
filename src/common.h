@@ -35,8 +35,8 @@ GHashTable *global_filter_list;
 char *opt_tid;
 char *opt_hostname;
 char *opt_kprobes;
-GHashTable *tid_list;
-GHashTable *hostname_list;
+GHashTable *tid_filter_list;
+GHashTable *hostname_filter_list;
 
 int toggle_filter;
 
