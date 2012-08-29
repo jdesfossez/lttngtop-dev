@@ -481,6 +481,7 @@ void init_lttngtop()
 	copies = g_ptr_array_new();
 	global_perf_liszt = g_hash_table_new(g_str_hash, g_str_equal);
 	global_filter_list = g_hash_table_new(g_str_hash, g_str_equal);
+	global_host_list = g_hash_table_new(g_str_hash, g_str_equal);
 
 	sem_init(&goodtodisplay, 0, 0);
 	sem_init(&goodtoupdate, 0, 1);
@@ -633,14 +634,17 @@ static int parse_options(int argc, char **argv)
 				break;
 			case OPT_HOSTNAME:
 				toggle_filter = 1;
-				hostname_filter_list = g_hash_table_new(g_str_hash,
-						g_str_equal);
 				tmp_str = strtok(opt_hostname, ",");
 				while (tmp_str) {
-					char *new_str = strdup(tmp_str);
-					g_hash_table_insert(hostname_filter_list,
-							(gpointer) new_str,
-							(gpointer) new_str);
+//					char *new_str = strdup(tmp_str);
+					struct host *host;
+
+					host = g_new0(struct host, 1);
+					host->hostname = strdup(tmp_str);
+					host->filter = 1;
+					g_hash_table_insert(global_host_list,
+							(gpointer) host->hostname,
+							(gpointer) host);
 					tmp_str = strtok(NULL, ",");
 				}
 				break;

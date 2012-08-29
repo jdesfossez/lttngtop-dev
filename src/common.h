@@ -31,12 +31,12 @@ sem_t goodtodisplay, goodtoupdate, timer, pause_sem, end_trace_sem, bootstrap;
 GPtrArray *copies; /* struct lttngtop */
 GHashTable *global_perf_liszt;
 GHashTable *global_filter_list;
+GHashTable *global_host_list;
 
 char *opt_tid;
 char *opt_hostname;
 char *opt_kprobes;
 GHashTable *tid_filter_list;
-GHashTable *hostname_filter_list;
 
 int toggle_filter;
 
@@ -86,9 +86,10 @@ struct tm format_timestamp(uint64_t timestamp);
 
 int *lookup_filter_tid_list(int tid);
 int *lookup_tid_list(int tid);
-char *lookup_hostname_list(const char *hostname);
 void remove_hostname_list(const char *hostname);
 void add_filter_tid_list(int tid, struct processtop *newproc);
 void remove_filter_tid_list(int tid);
+struct host *lookup_hostname_list(const char *hostname);
+int is_hostname_filtered(const char *hostname);
 
 #endif /* _COMMON_H */
