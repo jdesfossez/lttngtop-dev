@@ -458,7 +458,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	/* find or create the current process */
 	child = find_process_tid(&lttngtop, tid, comm);
 	if (!child)
-		child = add_proc(&lttngtop, tid, comm, timestamp);
+		child = add_proc(&lttngtop, tid, comm, timestamp, hostname);
 	if (!child)
 		goto end;
 	update_proc(child, pid, tid, ppid, vpid, vtid, vppid, comm, hostname);
@@ -467,7 +467,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 		/* find or create the parent */
 		parent = find_process_tid(&lttngtop, pid, comm);
 		if (!parent) {
-			parent = add_proc(&lttngtop, pid, comm, timestamp);
+			parent = add_proc(&lttngtop, pid, comm, timestamp, hostname);
 			if (parent)
 				parent->pid = pid;
 		}

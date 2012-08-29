@@ -175,7 +175,7 @@ struct processtop *find_process_tid(struct lttngtop *ctx, int tid, char *comm)
 }
 
 struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
-		unsigned long timestamp)
+		unsigned long timestamp, char *hostname)
 {
 	struct processtop *newproc;
 
@@ -207,6 +207,15 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		ctx->nbthreads++;
 	}
 	newproc->comm = strdup(comm);
+	if (hostname) {
+		if (newproc->hostname && strcmp(newproc->hostname, hostname) != 0) {
+			free(newproc->hostname);
+		}
+		newproc->hostname = strdup(hostname);
+		if (lookup_hostname_list(hostname)) {
+			add_filter_tid_list(tid, newproc);
+		}
+	}
 
 	return newproc;
 }
@@ -224,15 +233,6 @@ struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 		if (strcmp(proc->comm, comm) != 0) {
 			free(proc->comm);
 			proc->comm = strdup(comm);
-		}
-		if (hostname) {
-			if (proc->hostname && strcmp(proc->hostname, hostname) != 0) {
-				free(proc->hostname);
-			}
-			proc->hostname = strdup(hostname);
-			if (lookup_hostname_list(hostname)) {
-				add_filter_tid_list(tid, proc);
-			}
 		}
 	}
 	return proc;
@@ -258,23 +258,23 @@ void death_proc(struct lttngtop *ctx, int tid, char *comm,
 }
 
 struct processtop* get_proc(struct lttngtop *ctx, int tid, char *comm,
-		unsigned long timestamp)
+		unsigned long timestamp, char *hostname)
 {
 	struct processtop *tmp;
 	tmp = find_process_tid(ctx, tid, comm);
 	if (tmp && strcmp(tmp->comm, comm) == 0)
 		return tmp;
-	return add_proc(ctx, tid, comm, timestamp);
+	return add_proc(ctx, tid, comm, timestamp, hostname);
 }
 
 struct processtop *get_proc_pid(struct lttngtop *ctx, int tid, int pid,
-		unsigned long timestamp)
+		unsigned long timestamp, char *hostname)
 {
 	struct processtop *tmp;
 	tmp = find_process_tid(ctx, tid, NULL);
 	if (tmp && tmp->pid == pid)
 		return tmp;
-	return add_proc(ctx, tid, "Unknown", timestamp);
+	return add_proc(ctx, tid, "Unknown", timestamp, hostname);
 }
 
 void add_thread(struct processtop *parent, struct processtop *thread)
@@ -620,8 +620,9 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	}
 
 	proc = find_process_tid(&lttngtop, tid, procname);
+	/* FIXME : hostname NULL */
 	if (proc == NULL)
-		proc = add_proc(&lttngtop, tid, procname, timestamp);
+		proc = add_proc(&lttngtop, tid, procname, timestamp, NULL);
 	update_proc(proc, pid, tid, ppid, vpid, vtid, vppid, procname, NULL);
 
 	if (proc) {
@@ -667,6 +668,14 @@ char *lookup_hostname_list(const char *hostname)
 		return NULL;
 
 	return g_hash_table_lookup(hostname_list, (gpointer) hostname);
+}
+
+void remove_hostname_list(const char *hostname)
+{
+	if (!hostname || !hostname_list)
+		return;
+
+	g_hash_table_remove(hostname_list, (gpointer) hostname);
 }
 
 int *lookup_filter_tid_list(int tid)

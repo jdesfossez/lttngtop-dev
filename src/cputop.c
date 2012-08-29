@@ -22,7 +22,7 @@
 #include "cputop.h"
 
 void update_cputop_data(unsigned long timestamp, int64_t cpu, int prev_pid,
-		int next_pid, char *prev_comm, char *next_comm)
+		int next_pid, char *prev_comm, char *next_comm, char *hostname)
 {
 	struct cputime *tmpcpu;
 	unsigned long elapsed;
@@ -39,7 +39,8 @@ void update_cputop_data(unsigned long timestamp, int64_t cpu, int prev_pid,
 	}
 
 	if (next_pid != 0)
-		tmpcpu->current_task = get_proc(&lttngtop, next_pid, next_comm, timestamp);
+		tmpcpu->current_task = get_proc(&lttngtop, next_pid, next_comm,
+				timestamp, hostname);
 	else
 		tmpcpu->current_task = NULL;
 
@@ -54,6 +55,7 @@ enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
 	uint64_t cpu_id;
 	char *prev_comm, *next_comm;
 	int prev_tid, next_tid;
+	char *hostname;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -88,11 +90,12 @@ enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
 		fprintf(stderr, "Missing next_tid context info\n");
 		goto error;
 	}
+	hostname = get_context_hostname(call_data);
 
 	cpu_id = get_cpu_id(call_data);
 
 	update_cputop_data(timestamp, cpu_id, prev_tid, next_tid,
-			prev_comm, next_comm);
+			prev_comm, next_comm, hostname);
 
 	return BT_CB_OK;
 
