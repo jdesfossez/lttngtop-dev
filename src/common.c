@@ -234,6 +234,12 @@ struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 			free(proc->comm);
 			proc->comm = strdup(comm);
 		}
+		if (hostname && !proc->hostname) {
+			proc->hostname = strdup(hostname);
+			if (lookup_hostname_list(hostname)) {
+				add_filter_tid_list(tid, proc);
+			}
+		}
 	}
 	return proc;
 }
@@ -261,9 +267,11 @@ struct processtop* get_proc(struct lttngtop *ctx, int tid, char *comm,
 		unsigned long timestamp, char *hostname)
 {
 	struct processtop *tmp;
+
 	tmp = find_process_tid(ctx, tid, comm);
-	if (tmp && strcmp(tmp->comm, comm) == 0)
+	if (tmp && strcmp(tmp->comm, comm) == 0) {
 		return tmp;
+	}
 	return add_proc(ctx, tid, comm, timestamp, hostname);
 }
 
@@ -565,7 +573,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	struct processtop *proc;
 	unsigned long timestamp;
 	int64_t pid, tid, ppid, vtid, vpid, vppid;
-	char *procname;
+	char *procname, *hostname = NULL;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
@@ -618,12 +626,17 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 		fprintf(stderr, "Missing process name context info\n");
 		goto error;
 	}
+	/*
+	hostname = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
+				scope, "_hostname"));
+	if (bt_ctf_field_get_error()) {
+	}
+	*/
 
 	proc = find_process_tid(&lttngtop, tid, procname);
-	/* FIXME : hostname NULL */
 	if (proc == NULL)
-		proc = add_proc(&lttngtop, tid, procname, timestamp, NULL);
-	update_proc(proc, pid, tid, ppid, vpid, vtid, vppid, procname, NULL);
+		proc = add_proc(&lttngtop, tid, procname, timestamp, hostname);
+	update_proc(proc, pid, tid, ppid, vpid, vtid, vppid, procname, hostname);
 
 	if (proc) {
 		free(proc->comm);
