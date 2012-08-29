@@ -200,7 +200,9 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		g_ptr_array_add(ctx->process_table, newproc);
 		g_hash_table_insert(ctx->process_hash_table,
 				(gpointer) (unsigned long) tid, newproc);
-
+		if (lookup_tid_list(tid)) {
+			add_filter_tid_list(tid, newproc);
+		}
 		ctx->nbnewthreads++;
 		ctx->nbthreads++;
 	}
@@ -228,6 +230,9 @@ struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 				free(proc->hostname);
 			}
 			proc->hostname = strdup(hostname);
+			if (lookup_hostname_list(hostname)) {
+				add_filter_tid_list(tid, proc);
+			}
 		}
 	}
 	return proc;
@@ -522,12 +527,14 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 		 */
 		g_ptr_array_add(dst->cpu_table, newcpu);
 	}
-	for (i = 0; i < lttngtop.kprobes_table->len; i++) {
-		tmpprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
-		newprobe = g_new0(struct kprobes, 1);
-		memcpy(newprobe, tmpprobe, sizeof(struct kprobes));
-		tmpprobe->count = 0;
-		g_ptr_array_add(dst->kprobes_table, newprobe);
+	if (lttngtop.kprobes_table) {
+		for (i = 0; i < lttngtop.kprobes_table->len; i++) {
+			tmpprobe = g_ptr_array_index(lttngtop.kprobes_table, i);
+			newprobe = g_new0(struct kprobes, 1);
+			memcpy(newprobe, tmpprobe, sizeof(struct kprobes));
+			tmpprobe->count = 0;
+			g_ptr_array_add(dst->kprobes_table, newprobe);
+		}
 	}
 	/* FIXME : better algo */
 	/* create the threads index if required */
@@ -648,13 +655,37 @@ struct tm format_timestamp(uint64_t timestamp)
 
 int *lookup_tid_list(int tid)
 {
+	if (!tid_list)
+		return NULL;
+
 	return g_hash_table_lookup(tid_list, (gpointer) &tid);
 }
 
 char *lookup_hostname_list(const char *hostname)
 {
-	if (!hostname)
+	if (!hostname || !hostname_list)
 		return NULL;
 
 	return g_hash_table_lookup(hostname_list, (gpointer) hostname);
+}
+
+int *lookup_filter_tid_list(int tid)
+{
+	return g_hash_table_lookup(global_filter_list, (gpointer) &tid);
+}
+
+void add_filter_tid_list(int tid, struct processtop *newproc)
+{
+	unsigned long *hash_tid;
+
+	hash_tid = malloc(sizeof(unsigned long));
+	*hash_tid = tid;
+	g_hash_table_insert(global_filter_list,
+			(gpointer) (unsigned long) hash_tid, newproc);
+}
+
+void remove_filter_tid_list(int tid)
+{
+	g_hash_table_remove(global_filter_list,
+			(gpointer) (unsigned long) &tid);
 }

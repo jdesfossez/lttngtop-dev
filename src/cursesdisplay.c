@@ -63,7 +63,6 @@ int toggle_virt = -1;
 int toggle_pause = -1;
 
 int max_center_lines;
-GPtrArray *selected_processes;
 
 pthread_t keyboard_thread;
 
@@ -106,8 +105,9 @@ void init_screen()
 		init_pair(2, COLOR_GREEN, COLOR_BLACK); /* + */
 		init_pair(3, COLOR_BLACK, COLOR_WHITE); /* keys */
 		init_pair(4, COLOR_WHITE, COLOR_GREEN); /* keys activated */
-		init_pair(5, COLOR_WHITE, COLOR_BLUE); /* select line */
-		init_pair(6, COLOR_WHITE, COLOR_GREEN); /* selected process */
+		init_pair(5, COLOR_BLACK, COLOR_YELLOW); /* select line */
+		init_pair(6, COLOR_GREEN, COLOR_BLACK); /* selected process */
+		init_pair(7, COLOR_RED, COLOR_YELLOW); /* selected process + line*/
 	}
 	termtype = getenv("TERM");
 	if (!strcmp(termtype, "xterm") ||  !strcmp(termtype, "xterm-color") ||
@@ -232,37 +232,17 @@ void print_log(char *str)
 
 int process_selected(struct processtop *process)
 {
-	int i;
-	struct processtop *stored_process;
-
-	for (i = 0; i < selected_processes->len; i++) {
-		stored_process = g_ptr_array_index(selected_processes, i);
-		if (!stored_process)
-			return 0;
-		if (stored_process->tid == process->tid)
-			return 1;
-	}
+	if (lookup_filter_tid_list(process->tid))
+		return 1;
 	return 0;
 }
 
 void update_selected_processes()
 {
-	int i;
-	struct processtop *stored_process;
-
 	if (process_selected(selected_process)) {
-		for (i = 0; i < selected_processes->len; i++) {
-			stored_process = g_ptr_array_index(selected_processes, i);
-			if (!stored_process)
-				return;
-			if (stored_process->tid == selected_process->tid)
-				g_ptr_array_remove(selected_processes,
-						stored_process);
-			print_log("Process removed");
-		}
+		remove_filter_tid_list(selected_process->tid);
 	} else {
-			g_ptr_array_add(selected_processes, selected_process);
-		print_log("Process added");
+		add_filter_tid_list(selected_process->tid, selected_process);
 	}
 }
 
@@ -604,26 +584,25 @@ void update_cputop_display()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 		current_row_offset = 1;
-		if (!opt_tid && (opt_hostname && !lookup_hostname_list(tmp->hostname)))
-			continue;
-		if (!opt_hostname && (opt_tid && !lookup_tid_list(tmp->pid)))
-			continue;
-		if ((opt_tid && !lookup_tid_list(tmp->tid)) &&
-				(opt_hostname && !lookup_hostname_list(tmp->hostname)))
+		if (toggle_filter > 0 && !lookup_filter_tid_list(tmp->tid))
 			continue;
 
 		if (tmp->pid != tmp->tid)
 			if (toggle_threads == -1)
 				continue;
 
-		if (process_selected(tmp)) {
-			wattron(center, COLOR_PAIR(6));
-			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
-		}
+		/* line */
 		if (current_line == selected_line) {
 			selected_process = tmp;
 			wattron(center, COLOR_PAIR(5));
 			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
+		}
+		/* filtered process */
+		if (process_selected(tmp)) {
+			if (current_line == selected_line)
+				wattron(center, COLOR_PAIR(7));
+			else
+				wattron(center, COLOR_PAIR(6));
 		}
 		/* CPU(%) */
 		mvwprintw(center, current_line + header_offset,
@@ -651,6 +630,7 @@ void update_cputop_display()
 		/* NAME */
 		mvwprintw(center, current_line + header_offset,
 				current_row_offset, "%s", tmp->comm);
+		wattroff(center, COLOR_PAIR(7));
 		wattroff(center, COLOR_PAIR(6));
 		wattroff(center, COLOR_PAIR(5));
 		nblinedisplayed++;
@@ -862,12 +842,7 @@ void update_perf()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
-		if (!opt_tid && (opt_hostname && !lookup_hostname_list(tmp->hostname)))
-			continue;
-		if (!opt_hostname && (opt_tid && !lookup_tid_list(tmp->pid)))
-			continue;
-		if ((opt_tid && !lookup_tid_list(tmp->tid)) &&
-				(opt_hostname && !lookup_hostname_list(tmp->hostname)))
+		if (toggle_filter > 0 && !lookup_filter_tid_list(tmp->tid))
 			continue;
 
 		if (tmp->pid != tmp->tid)
@@ -875,8 +850,10 @@ void update_perf()
 				continue;
 
 		if (process_selected(tmp)) {
-			wattron(center, COLOR_PAIR(6));
-			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
+			if (current_line == selected_line)
+				wattron(center, COLOR_PAIR(7));
+			else
+				wattron(center, COLOR_PAIR(6));
 		}
 		if (current_line == selected_line) {
 			selected_process = tmp;
@@ -953,12 +930,7 @@ void update_iostream()
 			nblinedisplayed < max_center_lines; i++) {
 		tmp = g_ptr_array_index(data->process_table, i);
 
-		if (!opt_tid && (opt_hostname && !lookup_hostname_list(tmp->hostname)))
-			continue;
-		if (!opt_hostname && (opt_tid && !lookup_tid_list(tmp->pid)))
-			continue;
-		if ((opt_tid && !lookup_tid_list(tmp->tid)) &&
-				(opt_hostname && !lookup_hostname_list(tmp->hostname)))
+		if (toggle_filter > 0 && !lookup_filter_tid_list(tmp->tid))
 			continue;
 
 		if (tmp->pid != tmp->tid)
@@ -966,8 +938,10 @@ void update_iostream()
 				continue;
 
 		if (process_selected(tmp)) {
-			wattron(center, COLOR_PAIR(6));
-			mvwhline(center, current_line + header_offset, 1, ' ', COLS-3);
+			if (current_line == selected_line)
+				wattron(center, COLOR_PAIR(7));
+			else
+				wattron(center, COLOR_PAIR(6));
 		}
 		if (current_line == selected_line) {
 			selected_process = tmp;
@@ -1518,6 +1492,13 @@ void *handle_keyboard(void *p)
 				update_preference_panel(&pref_line_selected, 1, 0);
 			} else {
 				update_selected_processes();
+				if (toggle_filter > 0) {
+					max_elements = g_hash_table_size(global_filter_list);
+					fprintf(stderr, "select : %d, max : %d\n",
+							selected_line, max_elements);
+					if (selected_line >= max_elements)
+						selected_line = max_elements - 1;
+				}
 				update_current_view();
 			}
 			break;
@@ -1601,6 +1582,15 @@ void *handle_keyboard(void *p)
 			/* exit keyboard thread */
 			pthread_exit(0);
 			break;
+		case 'f':
+			toggle_filter *= -1;
+			selected_line = 0;
+			if (toggle_filter > 0)
+				max_elements = g_hash_table_size(global_filter_list);
+			else
+				max_elements = data->process_table->len;
+			update_current_view();
+			break;
 		case 't':
 			toggle_threads *= -1;
 			update_current_view();
@@ -1666,7 +1656,6 @@ void init_view_headers()
 
 void init_ncurses()
 {
-	selected_processes = g_ptr_array_new();
 	sem_init(&update_display_sem, 0, 1);
 	init_view_headers();
 	init_screen();
