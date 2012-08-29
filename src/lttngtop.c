@@ -218,16 +218,6 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		if (!lookup_filter_tid_list(pid))
 			goto end;
 
-	/*
-	if (!opt_tid && (opt_hostname && !lookup_hostname_list(hostname)))
-		goto end;
-	if (!opt_hostname && (opt_tid && !lookup_tid_list(pid)))
-		goto end;
-	if ((opt_tid && !lookup_tid_list(pid)) &&
-			(opt_hostname && !lookup_hostname_list(hostname)))
-		goto end;
-		*/
-
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
 
@@ -630,25 +620,25 @@ static int parse_options(int argc, char **argv)
 				break;
 			case OPT_PID:
 				toggle_filter = 1;
-				tid_list = g_hash_table_new(g_str_hash,
+				tid_filter_list = g_hash_table_new(g_str_hash,
 						g_str_equal);
 				tmp_str = strtok(opt_tid, ",");
 				while (tmp_str) {
 					tid = malloc(sizeof(int));
 					*tid = atoi(tmp_str);
-					g_hash_table_insert(tid_list,
+					g_hash_table_insert(tid_filter_list,
 							(gpointer) tid, tid);
 					tmp_str = strtok(NULL, ",");
 				}
 				break;
 			case OPT_HOSTNAME:
 				toggle_filter = 1;
-				hostname_list = g_hash_table_new(g_str_hash,
+				hostname_filter_list = g_hash_table_new(g_str_hash,
 						g_str_equal);
 				tmp_str = strtok(opt_hostname, ",");
 				while (tmp_str) {
 					char *new_str = strdup(tmp_str);
-					g_hash_table_insert(hostname_list,
+					g_hash_table_insert(hostname_filter_list,
 							(gpointer) new_str,
 							(gpointer) new_str);
 					tmp_str = strtok(NULL, ",");

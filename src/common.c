@@ -669,26 +669,26 @@ struct tm format_timestamp(uint64_t timestamp)
 
 int *lookup_tid_list(int tid)
 {
-	if (!tid_list)
+	if (!tid_filter_list)
 		return NULL;
 
-	return g_hash_table_lookup(tid_list, (gpointer) &tid);
+	return g_hash_table_lookup(tid_filter_list, (gpointer) &tid);
 }
 
 char *lookup_hostname_list(const char *hostname)
 {
-	if (!hostname || !hostname_list)
+	if (!hostname || !hostname_filter_list)
 		return NULL;
 
-	return g_hash_table_lookup(hostname_list, (gpointer) hostname);
+	return g_hash_table_lookup(hostname_filter_list, (gpointer) hostname);
 }
 
 void remove_hostname_list(const char *hostname)
 {
-	if (!hostname || !hostname_list)
+	if (!hostname || !hostname_filter_list)
 		return;
 
-	g_hash_table_remove(hostname_list, (gpointer) hostname);
+	g_hash_table_remove(hostname_filter_list, (gpointer) hostname);
 }
 
 int *lookup_filter_tid_list(int tid)
