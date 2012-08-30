@@ -62,6 +62,8 @@ int toggle_threads = 1;
 int toggle_virt = -1;
 int toggle_pause = -1;
 
+int filter_host_panel = 0;
+
 int max_center_lines;
 
 pthread_t keyboard_thread;
@@ -1307,22 +1309,95 @@ void update_perf_pref(int *line_selected, int toggle_view, int toggle_sort)
 	doupdate();
 }
 
+void update_hostname_pref(int *line_selected, int toggle_filter, int toggle_sort)
+{
+	int i;
+	struct host *host;
+	GList *hostlist;
+	int size;
+
+	if (!data)
+		return;
+	if (pref_panel_window) {
+		del_panel(pref_panel);
+		delwin(pref_panel_window);
+	}
+	size = g_hash_table_size(global_host_list);
+
+	pref_panel_window = create_window(size + 2, 30, 10, 10);
+	pref_panel = new_panel(pref_panel_window);
+
+	werase(pref_panel_window);
+	box(pref_panel_window, 0 , 0);
+	set_window_title(pref_panel_window, "Hosts Preferences ");
+	wattron(pref_panel_window, A_BOLD);
+	mvwprintw(pref_panel_window, g_hash_table_size(global_host_list) + 1, 1,
+			" space : toggle filter");
+	wattroff(pref_panel_window, A_BOLD);
+
+	if (*line_selected > (size - 1))
+		*line_selected = size - 1;
+	else if (*line_selected < 0)
+		*line_selected = 0;
+
+	i = 0;
+	hostlist = g_list_first(g_hash_table_get_keys(global_host_list));
+	while (hostlist) {
+		host = g_hash_table_lookup(global_host_list, hostlist->data);
+		if (i == *line_selected && toggle_filter == 1) {
+			host->filter = host->filter == 1 ? 0:1;
+			update_current_view();
+		}
+		if (i == *line_selected) {
+			wattron(pref_panel_window, COLOR_PAIR(5));
+			mvwhline(pref_panel_window, i + 1, 1, ' ', 30 - 2);
+		}
+		if (host->filter == 1)
+			wattron(pref_panel_window, A_BOLD);
+		mvwprintw(pref_panel_window, i + 1, 1, "[%c] %s",
+				host->filter == 1 ? 'x' : ' ',
+				(char *) hostlist->data);
+		wattroff(pref_panel_window, A_BOLD);
+		wattroff(pref_panel_window, COLOR_PAIR(5));
+		i++;
+		hostlist = g_list_next(hostlist);
+	}
+	update_panels();
+	doupdate();
+}
+
 int update_preference_panel(int *line_selected, int toggle_view, int toggle_sort)
 {
 	int ret = 0;
 
 	switch(current_view) {
 		case perf:
-			update_perf_pref(line_selected, toggle_view, toggle_sort);
+			if (filter_host_panel)
+				update_hostname_pref(line_selected,
+						toggle_view, toggle_sort);
+			else
+				update_perf_pref(line_selected,
+						toggle_view, toggle_sort);
 			break;
 		case cpu:
-			update_cpu_pref(line_selected, toggle_view, toggle_sort);
+			if (filter_host_panel)
+				update_hostname_pref(line_selected,
+						toggle_view, toggle_sort);
+			else
+				update_cpu_pref(line_selected,
+						toggle_view, toggle_sort);
 			break;
 		case iostream:
-			update_iostream_pref(line_selected, toggle_view, toggle_sort);
+			if (filter_host_panel)
+				update_hostname_pref(line_selected,
+						toggle_view, toggle_sort);
+			else
+				update_iostream_pref(line_selected,
+						toggle_view, toggle_sort);
 			break;
 		case process_details:
-			update_process_detail_pref(line_selected, toggle_view, toggle_sort);
+			update_process_detail_pref(line_selected,
+					toggle_view, toggle_sort);
 			break;
 		default:
 			ret = -1;
@@ -1357,11 +1432,29 @@ int update_sort(int *line_selected)
 	return ret;
 }
 
-
 void toggle_pref_panel(void)
 {
 	int ret;
 
+	if (pref_panel_visible) {
+		hide_panel(pref_panel);
+		pref_panel_visible = 0;
+	} else {
+		ret = update_preference_panel(&pref_line_selected, 0, 0);
+		if (ret < 0)
+			return;
+		show_panel(pref_panel);
+		pref_panel_visible = 1;
+	}
+	update_panels();
+	doupdate();
+}
+
+void toggle_host_panel(void)
+{
+	int ret;
+
+	filter_host_panel = filter_host_panel ? 0 : 1;
 	if (pref_panel_visible) {
 		hide_panel(pref_panel);
 		pref_panel_visible = 0;
@@ -1588,6 +1681,9 @@ void *handle_keyboard(void *p)
 			else
 				max_elements = data->process_table->len;
 			update_current_view();
+			break;
+		case 'h':
+			toggle_host_panel();
 			break;
 		case 't':
 			toggle_threads *= -1;

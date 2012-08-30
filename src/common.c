@@ -215,6 +215,7 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		if (is_hostname_filtered(hostname)) {
 			add_filter_tid_list(tid, newproc);
 		}
+		add_hostname_list(hostname, 0);
 	}
 
 	return newproc;
@@ -239,6 +240,7 @@ struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 			if (is_hostname_filtered(hostname)) {
 				add_filter_tid_list(tid, proc);
 			}
+			add_hostname_list(hostname, 0);
 		}
 	}
 	return proc;
@@ -712,4 +714,19 @@ void remove_filter_tid_list(int tid)
 {
 	g_hash_table_remove(global_filter_list,
 			(gpointer) (unsigned long) &tid);
+}
+
+void add_hostname_list(char *hostname, int filter)
+{
+	struct host *host;
+
+	if (lookup_hostname_list(hostname))
+		return;
+
+	host = g_new0(struct host, 1);
+	host->hostname = strdup(hostname);
+	host->filter = filter;
+	g_hash_table_insert(global_host_list,
+			(gpointer) host->hostname,
+			(gpointer) host);
 }
