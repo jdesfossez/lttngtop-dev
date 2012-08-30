@@ -178,6 +178,7 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		unsigned long timestamp, char *hostname)
 {
 	struct processtop *newproc;
+	struct host *host;
 
 	/* if the PID already exists, we just rename the process */
 	/* FIXME : need to integrate with clone/fork/exit to be accurate */
@@ -201,21 +202,21 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 		g_hash_table_insert(ctx->process_hash_table,
 				(gpointer) (unsigned long) tid, newproc);
 		if (lookup_tid_list(tid)) {
-			add_filter_tid_list(tid, newproc);
+			add_filter_tid_list(newproc);
 		}
 		ctx->nbnewthreads++;
 		ctx->nbthreads++;
 	}
 	newproc->comm = strdup(comm);
 	if (hostname) {
-		if (newproc->hostname && strcmp(newproc->hostname, hostname) != 0) {
-			free(newproc->hostname);
-		}
-		newproc->hostname = strdup(hostname);
+		host = lookup_hostname_list(hostname);
+		if (!host)
+			host = add_hostname_list(hostname, 0);
+		if (!newproc->host || (newproc->host != host))
+			newproc->host = host;
 		if (is_hostname_filtered(hostname)) {
-			add_filter_tid_list(tid, newproc);
+			add_filter_tid_list(newproc);
 		}
-		add_hostname_list(hostname, 0);
 	}
 
 	return newproc;
@@ -224,6 +225,8 @@ struct processtop* add_proc(struct lttngtop *ctx, int tid, char *comm,
 struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 		int ppid, int vpid, int vtid, int vppid, char *comm, char *hostname)
 {
+	struct host *host;
+
 	if (proc) {
 		proc->pid = pid;
 		proc->tid = tid;
@@ -235,12 +238,15 @@ struct processtop* update_proc(struct processtop* proc, int pid, int tid,
 			free(proc->comm);
 			proc->comm = strdup(comm);
 		}
-		if (hostname && !proc->hostname) {
-			proc->hostname = strdup(hostname);
+		if (hostname && !proc->host) {
+			host = lookup_hostname_list(hostname);
+			if (!host)
+				host = add_hostname_list(hostname, 0);
+			if (!proc->host || (proc->host != host))
+				proc->host = host;
 			if (is_hostname_filtered(hostname)) {
-				add_filter_tid_list(tid, proc);
+				add_filter_tid_list(proc);
 			}
-			add_hostname_list(hostname, 0);
 		}
 	}
 	return proc;
@@ -379,6 +385,7 @@ void copy_process_table(gpointer key, gpointer value, gpointer new_table)
 void rotate_perfcounter() {
 	int i;
 	struct processtop *tmp;
+
 	for (i = 0; i < lttngtop.process_table->len; i++) {
 		tmp = g_ptr_array_index(lttngtop.process_table, i);
 		g_hash_table_foreach(tmp->perf, reset_perf_counter, NULL);
@@ -628,12 +635,6 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 		fprintf(stderr, "Missing process name context info\n");
 		goto error;
 	}
-	/*
-	hostname = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
-				scope, "_hostname"));
-	if (bt_ctf_field_get_error()) {
-	}
-	*/
 
 	proc = find_process_tid(&lttngtop, tid, procname);
 	if (proc == NULL)
@@ -700,14 +701,14 @@ int *lookup_filter_tid_list(int tid)
 	return g_hash_table_lookup(global_filter_list, (gpointer) &tid);
 }
 
-void add_filter_tid_list(int tid, struct processtop *newproc)
+void add_filter_tid_list(struct processtop *proc)
 {
 	unsigned long *hash_tid;
 
 	hash_tid = malloc(sizeof(unsigned long));
-	*hash_tid = tid;
+	*hash_tid = proc->tid;
 	g_hash_table_insert(global_filter_list,
-			(gpointer) (unsigned long) hash_tid, newproc);
+			(gpointer) (unsigned long) hash_tid, proc);
 }
 
 void remove_filter_tid_list(int tid)
@@ -716,12 +717,13 @@ void remove_filter_tid_list(int tid)
 			(gpointer) (unsigned long) &tid);
 }
 
-void add_hostname_list(char *hostname, int filter)
+struct host *add_hostname_list(char *hostname, int filter)
 {
 	struct host *host;
 
-	if (lookup_hostname_list(hostname))
-		return;
+	host = lookup_hostname_list(hostname);
+	if (host)
+		return host;
 
 	host = g_new0(struct host, 1);
 	host->hostname = strdup(hostname);
@@ -729,4 +731,22 @@ void add_hostname_list(char *hostname, int filter)
 	g_hash_table_insert(global_host_list,
 			(gpointer) host->hostname,
 			(gpointer) host);
+
+	return host;
+}
+
+void update_hostname_filter(struct host *host)
+{
+	struct processtop *tmp;
+	int i;
+
+	for (i = 0; i < lttngtop.process_table->len; i++) {
+		tmp = g_ptr_array_index(lttngtop.process_table, i);
+		if (tmp->host == host) {
+			if (host->filter)
+				add_filter_tid_list(tmp);
+			else
+				remove_filter_tid_list(tmp->tid);
+		}
+	}
 }
