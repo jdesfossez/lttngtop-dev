@@ -13,3 +13,13 @@ for live mmap buffer consuming.
 
 Then you can compile and use the live branch of LttngTop :
 git clone -b live git://git.lttng.org/lttngtop.git
+
+Once everything is installed, you can start as root lttng-sessiond and use
+lttngtop (as root or from a user part of the "tracing" group).
+
+Note: if lttng-sessiond has been used to record a trace before starting
+lttngtop (normal lttng use-case), you need to restart it because it
+automatically spawned a consumer that prevents lttngtop from registering its
+own consumer. The same applies when you finish using lttngtop, you need to
+restart the lttng-sessiond daemon to allow others to record traces again. This
+is a know problem of integration that will be fixed.
