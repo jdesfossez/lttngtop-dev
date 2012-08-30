@@ -43,7 +43,7 @@ struct processtop {
 	unsigned int puuid;
 	int pid;
 	char *comm;
-	char *hostname;
+	struct host *host;
 	int tid;
 	int ppid;
 	int vpid;

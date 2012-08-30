@@ -87,10 +87,11 @@ struct tm format_timestamp(uint64_t timestamp);
 int *lookup_filter_tid_list(int tid);
 int *lookup_tid_list(int tid);
 void remove_hostname_list(const char *hostname);
-void add_filter_tid_list(int tid, struct processtop *newproc);
+void add_filter_tid_list(struct processtop *proc);
 void remove_filter_tid_list(int tid);
 struct host *lookup_hostname_list(const char *hostname);
 int is_hostname_filtered(const char *hostname);
-void add_hostname_list(char *hostname, int filter);
+struct host *add_hostname_list(char *hostname, int filter);
+void update_hostname_filter(struct host *host);
 
 #endif /* _COMMON_H */

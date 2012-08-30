@@ -244,7 +244,7 @@ void update_selected_processes()
 	if (process_selected(selected_process)) {
 		remove_filter_tid_list(selected_process->tid);
 	} else {
-		add_filter_tid_list(selected_process->tid, selected_process);
+		add_filter_tid_list(selected_process);
 	}
 }
 
@@ -1346,6 +1346,7 @@ void update_hostname_pref(int *line_selected, int toggle_filter, int toggle_sort
 		host = g_hash_table_lookup(global_host_list, hostlist->data);
 		if (i == *line_selected && toggle_filter == 1) {
 			host->filter = host->filter == 1 ? 0:1;
+			update_hostname_filter(host);
 			update_current_view();
 		}
 		if (i == *line_selected) {
