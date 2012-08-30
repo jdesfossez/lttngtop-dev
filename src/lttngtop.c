@@ -636,15 +636,7 @@ static int parse_options(int argc, char **argv)
 				toggle_filter = 1;
 				tmp_str = strtok(opt_hostname, ",");
 				while (tmp_str) {
-//					char *new_str = strdup(tmp_str);
-					struct host *host;
-
-					host = g_new0(struct host, 1);
-					host->hostname = strdup(tmp_str);
-					host->filter = 1;
-					g_hash_table_insert(global_host_list,
-							(gpointer) host->hostname,
-							(gpointer) host);
+					add_hostname_list(tmp_str, 1);
 					tmp_str = strtok(NULL, ",");
 				}
 				break;

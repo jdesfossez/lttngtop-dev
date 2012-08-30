@@ -91,5 +91,6 @@ void add_filter_tid_list(int tid, struct processtop *newproc);
 void remove_filter_tid_list(int tid);
 struct host *lookup_hostname_list(const char *hostname);
 int is_hostname_filtered(const char *hostname);
+void add_hostname_list(char *hostname, int filter);
 
 #endif /* _COMMON_H */
