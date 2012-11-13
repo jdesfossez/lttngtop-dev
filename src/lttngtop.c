@@ -162,6 +162,7 @@ void print_fields(struct bt_ctf_event *event)
 {
 	unsigned int cnt, i;
 	const struct definition *const * list;
+	const struct declaration *l;
 	const struct definition *scope;
 	enum ctf_type_id type;
 	const char *str;
@@ -173,9 +174,10 @@ void print_fields(struct bt_ctf_event *event)
 		if (i != 0)
 			printf(", ");
 		printf("%s = ", bt_ctf_field_name(list[i]));
-		type = bt_ctf_field_type(list[i]);
+		l = bt_ctf_get_decl_from_def(list[i]);
+		type = bt_ctf_field_type(l);
 		if (type == CTF_TYPE_INTEGER) {
-			if (bt_ctf_get_int_signedness(list[i]) == 0)
+			if (bt_ctf_get_int_signedness(l) == 0)
 				printf("%" PRIu64 "", bt_ctf_get_uint64(list[i]));
 			else
 				printf("%" PRId64 "", bt_ctf_get_int64(list[i]));
@@ -985,7 +987,7 @@ ssize_t read_subbuffer(struct lttng_consumer_stream *kconsumerd_fd,
 		}
 
 		/* splice the subbuffer to the tracefile */
-		ret = helper_lttng_consumer_on_read_subbuffer_splice(ctx, kconsumerd_fd, len);
+		ret = helper_lttng_consumer_on_read_subbuffer_splice(ctx, kconsumerd_fd, len, 0);
 		if (ret < 0) {
 			/*
 			 * display the error but continue processing to try
@@ -1091,14 +1093,14 @@ int setup_consumer(char *command_sock_path, pthread_t *threads,
 	helper_lttng_consumer_init();
 
 	/* Create the thread to manage the receive of fd */
-	ret = pthread_create(&threads[0], NULL, helper_lttng_consumer_thread_receive_fds,
+	ret = pthread_create(&threads[0], NULL, helper_lttng_consumer_thread_sessiond_poll,
 			(void *) ctx);
 	if (ret != 0) {
 		perror("pthread_create receive fd");
 		goto end;
 	}
 	/* Create thread to manage the polling/writing of traces */
-	ret = pthread_create(&threads[1], NULL, helper_lttng_consumer_thread_poll_fds,
+	ret = pthread_create(&threads[1], NULL, helper_lttng_consumer_thread_metadata_poll,
 			(void *) ctx);
 	if (ret != 0) {
 		perror("pthread_create poll fd");
@@ -1306,9 +1308,14 @@ int main(int argc, char **argv)
 			reload_trace = 0;
 			live_consume(&bt_ctx);
 			iter_trace(bt_ctx);
+			/*
+			 * FIXME : pb with cleanup in libbabeltrace
 			ret = bt_context_remove_trace(bt_ctx, 0);
-			if (ret != 0)
+			if (ret != 0) {
 				fprintf(stderr, "error removing trace\n");
+				goto error;
+			}
+			*/
 			if (bt_ctx) {
 				bt_context_put(bt_ctx);
 			}
@@ -1367,4 +1374,7 @@ end:
 		bt_context_put(bt_ctx);
 
 	return 0;
+
+error:
+	return -1;
 }
