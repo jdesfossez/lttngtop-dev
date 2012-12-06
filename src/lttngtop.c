@@ -1217,10 +1217,32 @@ int setup_live_tracing()
 	}
 
 	memset(&ev, '\0', sizeof(struct lttng_event));
-	//sprintf(ev.name, "sched_switch");
 	ev.type = LTTNG_EVENT_TRACEPOINT;
+	sprintf(ev.name, "sched_switch");
 	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
-		fprintf(stderr,"error enabling event : %s\n",
+		fprintf(stderr,"error enabling event %s : %s\n",
+				ev.name,
+				helper_lttcomm_get_readable_code(ret));
+		goto error_session;
+	}
+	sprintf(ev.name, "sched_process_free");
+	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+		fprintf(stderr,"error enabling event %s : %s\n",
+				ev.name,
+				helper_lttcomm_get_readable_code(ret));
+		goto error_session;
+	}
+	sprintf(ev.name, "lttng_statedump_process_state");
+	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+		fprintf(stderr,"error enabling event %s : %s\n",
+				ev.name,
+				helper_lttcomm_get_readable_code(ret));
+		goto error_session;
+	}
+	sprintf(ev.name, "lttng_statedump_file_descriptor");
+	if ((ret = lttng_enable_event(handle, &ev, channel_name)) < 0) {
+		fprintf(stderr,"error enabling event %s : %s\n",
+				ev.name,
 				helper_lttcomm_get_readable_code(ret));
 		goto error_session;
 	}
