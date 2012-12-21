@@ -1148,7 +1148,8 @@ int setup_live_tracing()
 	int ret = 0;
 	char *command_sock_path = "/tmp/consumerd_sock";
 	static pthread_t threads[2]; /* recv_fd, poll */
-	struct lttng_event_context kctxpid, kctxcomm, kctxppid, kctxtid;
+	struct lttng_event_context kctxpid, kctxcomm, kctxppid, kctxtid,
+				   kctxperf1, kctxperf2;
 
 	struct lttng_handle *handle;
 
@@ -1262,6 +1263,26 @@ int setup_live_tracing()
 		}
 	}
 
+	kctxperf1.ctx = LTTNG_EVENT_CONTEXT_PERF_COUNTER;
+	kctxperf1.u.perf_counter.type = 0; /* PERF_TYPE_HARDWARE */
+	kctxperf1.u.perf_counter.config = 5; /* PERF_COUNT_HW_BRANCH_MISSES */
+	sprintf(kctxperf1.u.perf_counter.name, "perf_branch_misses");
+	ret = lttng_add_context(handle, &kctxperf1, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "error enabling context %s\n",
+				kctxtid.u.perf_counter.name);
+	}
+
+	kctxperf2.ctx = LTTNG_EVENT_CONTEXT_PERF_COUNTER;
+	kctxperf2.u.perf_counter.type = 1; /* PERF_TYPE_SOFTWARE */
+	kctxperf2.u.perf_counter.config = 6; /* PERF_COUNT_SW_PAGE_FAULTS_MAJ */
+	sprintf(kctxperf2.u.perf_counter.name, "perf_major_faults");
+	ret = lttng_add_context(handle, &kctxperf2, NULL, NULL);
+	if (ret < 0) {
+		fprintf(stderr, "error enabling context %s\n",
+				kctxtid.u.perf_counter.name);
+	}
+
 	kctxpid.ctx = LTTNG_EVENT_CONTEXT_PID;
 	lttng_add_context(handle, &kctxpid, NULL, NULL);
 	kctxtid.ctx = LTTNG_EVENT_CONTEXT_TID;
@@ -1276,6 +1297,7 @@ int setup_live_tracing()
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
 	kctxtid.ctx = LTTNG_EVENT_CONTEXT_HOSTNAME;
 	lttng_add_context(handle, &kctxtid, NULL, NULL);
+
 
 	if ((ret = lttng_start_tracing("test")) < 0) {
 		fprintf(stderr,"error starting tracing : %s\n",
@@ -1329,6 +1351,11 @@ int main(int argc, char **argv)
 		while (!quit) {
 			reload_trace = 0;
 			live_consume(&bt_ctx);
+			ret = check_requirements(bt_ctx);
+			if (ret < 0) {
+				fprintf(stderr, "[error] some mandatory contexts were missing, exiting.\n");
+				goto end;
+			}
 			iter_trace(bt_ctx);
 			/*
 			 * FIXME : pb with cleanup in libbabeltrace
