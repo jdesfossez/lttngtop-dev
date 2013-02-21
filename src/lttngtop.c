@@ -544,7 +544,7 @@ static int check_field_requirements(const struct bt_ctf_field_decl *const * fiel
 				(*tid_check)++;
 		}
 		if (*pid_check == 0) {
-			if (strncmp(name, "tid", 3) == 0)
+			if (strncmp(name, "pid", 3) == 0)
 				(*pid_check)++;
 		}
 		if (*ppid_check == 0) {
