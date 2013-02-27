@@ -349,12 +349,12 @@ void update_perf_value(struct processtop *proc, struct cputime *cpu,
 }
 
 void extract_perf_counter_scope(const struct bt_ctf_event *event,
-		const struct definition *scope,
+		const struct bt_definition *scope,
 		struct processtop *proc,
 		struct cputime *cpu)
 {
-	struct definition const * const *list = NULL;
-	const struct definition *field;
+	struct bt_definition const * const *list = NULL;
+	const struct bt_definition *field;
 	unsigned int count;
 	struct perfcounter *perfcounter;
 	GHashTableIter iter;
@@ -389,7 +389,7 @@ end:
 void update_perf_counter(struct processtop *proc, const struct bt_ctf_event *event)
 {
 	struct cputime *cpu;
-	const struct definition *scope;
+	const struct bt_definition *scope;
 
 	cpu = get_cpu(get_cpu_id(event));
 
@@ -779,7 +779,7 @@ end_iter:
  */
 int bt_context_add_traces_recursive(struct bt_context *ctx, const char *path,
 		const char *format_str,
-		void (*packet_seek)(struct stream_pos *pos,
+		void (*packet_seek)(struct bt_stream_pos *pos,
 			size_t offset, int whence))
 {
 	FTS *tree;

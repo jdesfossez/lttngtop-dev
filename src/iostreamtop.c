@@ -267,7 +267,7 @@ struct file_history *create_file(struct file_history *history, char *file_name)
 enum bt_cb_ret handle_exit_syscall(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	unsigned long timestamp;
 	char *comm;
 	uint64_t ret, tid;
@@ -312,7 +312,7 @@ error:
 enum bt_cb_ret handle_sys_write(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	struct processtop *tmp;
 	unsigned long timestamp;
 	uint64_t cpu_id;
@@ -358,7 +358,7 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		void *private_data)
 {
 	struct processtop *tmp;
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	unsigned long timestamp;
 	uint64_t cpu_id;
 	int64_t tid;
@@ -406,7 +406,7 @@ enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 {
 
 	struct processtop *tmp;
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	unsigned long timestamp;
 	uint64_t cpu_id;
 	int64_t tid;
@@ -451,7 +451,7 @@ error:
 enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	struct processtop *tmp;
 	unsigned long timestamp;
 	int64_t tid;
@@ -493,7 +493,7 @@ error:
 enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	struct processtop *parent;
 	struct files *file;
 	unsigned long timestamp;
