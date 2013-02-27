@@ -48,7 +48,7 @@ void update_cputop_data(unsigned long timestamp, int64_t cpu, int prev_pid,
 enum bt_cb_ret handle_sched_switch(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	unsigned long timestamp;
 	uint64_t cpu_id;
 	char *prev_comm, *next_comm;
@@ -102,7 +102,7 @@ error:
 enum bt_cb_ret handle_sched_process_free(struct bt_ctf_event *call_data,
 		void *private_data)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	unsigned long timestamp;
 	char *comm;
 	int tid;
