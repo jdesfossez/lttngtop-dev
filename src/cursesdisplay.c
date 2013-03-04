@@ -1629,6 +1629,7 @@ void *handle_keyboard(void *p)
 				current_view = previous_view;
 				previous_view = process_details;
 			}
+			selected_line = 0;
 			update_current_view();
 			break;
 
