@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Julien Desfossez
+ * Copyright (C) 2013 Julien Desfossez
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License Version 2 as
@@ -68,6 +68,7 @@ pthread_t timer_thread;
 
 unsigned long refresh_display = 1 * NSEC_PER_SEC;
 unsigned long last_display_update = 0;
+unsigned long last_event_ts = 0;
 
 /* list of FDs available for being read with snapshots */
 struct bt_mmap_stream_list mmap_list;
@@ -105,11 +106,13 @@ static struct poptOption long_options[] = {
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
+#ifdef LTTNGTOP_MMAP_LIVE
 static void handle_textdump_sigterm(int signal)
 {
 	quit = 1;
 	lttng_destroy_session("test");
 }
+#endif
 
 void *refresh_thread(void *p)
 {
@@ -215,6 +218,12 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
+	/* can happen in network live when tracing is idle */
+	if (timestamp < last_event_ts)
+		goto end_stop;
+
+	last_event_ts = timestamp;
+
 	start = format_timestamp(timestamp);
 	ts_nsec_start = timestamp % NSEC_PER_SEC;
 
@@ -262,6 +271,8 @@ end:
 	return BT_CB_OK;
 error:
 	return BT_CB_ERROR_STOP;
+end_stop:
+	return BT_CB_OK_STOP;
 }
 
 enum bt_cb_ret handle_kprobes(struct bt_ctf_event *call_data, void *private_data)
@@ -292,6 +303,12 @@ enum bt_cb_ret check_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	if (timestamp == -1ULL)
 		goto error;
 
+	/* can happen in network live when tracing is idle */
+	if (timestamp < last_event_ts)
+		goto end_stop;
+
+	last_event_ts = timestamp;
+
 	if (last_display_update == 0)
 		last_display_update = timestamp;
 
@@ -308,6 +325,9 @@ enum bt_cb_ret check_timestamp(struct bt_ctf_event *call_data, void *private_dat
 error:
 	fprintf(stderr, "check_timestamp callback error\n");
 	return BT_CB_ERROR_STOP;
+
+end_stop:
+	return BT_CB_OK_STOP;
 }
 
 /*
@@ -994,40 +1014,14 @@ int main(int argc, char **argv)
 		exit(EXIT_SUCCESS);
 	}
 
-	if (!opt_input_path) {
+	if (!opt_input_path && !remote_live) {
+		/* mmap live */
+#ifdef LTTNGTOP_MMAP_LIVE
 		if (opt_textdump) {
 			signal(SIGTERM, handle_textdump_sigterm);
 			signal(SIGINT, handle_textdump_sigterm);
 		}
-		if (remote_live) {
-			ret = setup_network_live(opt_relay_hostname);
-			if (ret < 0) {
-				goto end;
-			}
-		}
-
-		if (!opt_textdump) {
-			pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
-			pthread_create(&timer_thread, NULL, refresh_thread, (void *) NULL);
-		}
-
-		ret = open_trace(&bt_ctx);
-		if (ret < 0) {
-			goto end;
-		}
-
-		ret = check_requirements(bt_ctx);
-		if (ret < 0) {
-			fprintf(stderr, "[error] some mandatory contexts were missing, exiting.\n");
-			goto end;
-		}
-
-		iter_trace(bt_ctx);
-
-#ifdef LTTNGTOP_MMAP_LIVE
 		mmap_live_loop(bt_ctx);
-#endif
-
 		pthread_join(timer_thread, NULL);
 		quit = 1;
 		pthread_join(display_thread, NULL);
@@ -1036,6 +1030,21 @@ int main(int argc, char **argv)
 		lttng_destroy_session("test");
 
 		goto end;
+#else
+		fprintf(stderr, "Mmap live support not compiled\n");
+		goto end;
+#endif /* LTTNGTOP_MMAP_LIVE */
+	} else if (!opt_input_path && remote_live) {
+		/* network live */
+		ret = setup_network_live(opt_relay_hostname);
+		if (ret < 0) {
+			goto end;
+		}
+
+		ret = open_trace(&bt_ctx);
+		if (ret < 0) {
+			goto end;
+		}
 	} else {
 		//init_lttngtop();
 
@@ -1045,21 +1054,23 @@ int main(int argc, char **argv)
 			fprintf(stderr, "[error] Opening the trace\n");
 			goto end;
 		}
+	}
 
-		ret = check_requirements(bt_ctx);
-		if (ret < 0) {
-			fprintf(stderr, "[error] some mandatory contexts were missing, exiting.\n");
-			goto end;
-		}
+	ret = check_requirements(bt_ctx);
+	if (ret < 0) {
+		fprintf(stderr, "[error] some mandatory contexts were missing, exiting.\n");
+		goto end;
+	}
+	if (!opt_textdump) {
 		pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
 		pthread_create(&timer_thread, NULL, refresh_thread, (void *) NULL);
-
-		iter_trace(bt_ctx);
-
-		pthread_join(display_thread, NULL);
-		quit = 1;
-		pthread_join(timer_thread, NULL);
 	}
+
+	iter_trace(bt_ctx);
+
+	pthread_join(display_thread, NULL);
+	quit = 1;
+	pthread_join(timer_thread, NULL);
 
 end:
 	if (bt_ctx)
