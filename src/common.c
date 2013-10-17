@@ -86,7 +86,7 @@ uint64_t get_context_ppid(const struct bt_ctf_event *event)
 
 uint64_t get_context_vtid(const struct bt_ctf_event *event)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	uint64_t vtid;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
@@ -101,7 +101,7 @@ uint64_t get_context_vtid(const struct bt_ctf_event *event)
 
 uint64_t get_context_vpid(const struct bt_ctf_event *event)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	uint64_t vpid;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
@@ -116,7 +116,7 @@ uint64_t get_context_vpid(const struct bt_ctf_event *event)
 
 uint64_t get_context_vppid(const struct bt_ctf_event *event)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	uint64_t vppid;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);
@@ -147,7 +147,7 @@ char *get_context_comm(const struct bt_ctf_event *event)
 
 char *get_context_hostname(const struct bt_ctf_event *event)
 {
-	const struct definition *scope;
+	const struct bt_definition *scope;
 	char *hostname;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_STREAM_EVENT_CONTEXT);

@@ -59,6 +59,7 @@
 const char *opt_input_path;
 static int opt_textdump;
 static int opt_child;
+static int opt_begin;
 
 int quit = 0;
 
@@ -91,6 +92,7 @@ enum {
 	OPT_HOSTNAME,
 	OPT_RELAY_HOSTNAME,
 	OPT_KPROBES,
+	OPT_BEGIN,
 };
 
 static struct poptOption long_options[] = {
@@ -98,6 +100,7 @@ static struct poptOption long_options[] = {
 	{ "help", 'h', POPT_ARG_NONE, NULL, OPT_HELP, NULL, NULL },
 	{ "textdump", 't', POPT_ARG_NONE, NULL, OPT_TEXTDUMP, NULL, NULL },
 	{ "child", 'f', POPT_ARG_NONE, NULL, OPT_CHILD, NULL, NULL },
+	{ "begin", 'b', POPT_ARG_NONE, NULL, OPT_BEGIN, NULL, NULL },
 	{ "pid", 'p', POPT_ARG_STRING, &opt_tid, OPT_PID, NULL, NULL },
 	{ "hostname", 'n', POPT_ARG_STRING, &opt_hostname, OPT_HOSTNAME, NULL, NULL },
 	{ "relay-hostname", 'r', POPT_ARG_STRING, &opt_relay_hostname,
@@ -664,6 +667,10 @@ static int parse_options(int argc, char **argv)
 					tmp_str = strtok(NULL, ",");
 				}
 				break;
+			case OPT_BEGIN:
+				/* start reading the live trace from the beginning */
+				opt_begin = 1;
+				break;
 			case OPT_HOSTNAME:
 				toggle_filter = 1;
 				tmp_str = strtok(opt_hostname, ",");
@@ -1036,7 +1043,7 @@ int main(int argc, char **argv)
 #endif /* LTTNGTOP_MMAP_LIVE */
 	} else if (!opt_input_path && remote_live) {
 		/* network live */
-		ret = setup_network_live(opt_relay_hostname);
+		ret = setup_network_live(opt_relay_hostname, opt_begin);
 		if (ret < 0) {
 			goto end;
 		}

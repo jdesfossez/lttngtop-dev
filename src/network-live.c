@@ -241,7 +241,8 @@ error:
 	return ret;
 }
 
-int attach_session(int id)
+static
+int attach_session(int id, int begin)
 {
 	struct lttng_viewer_cmd cmd;
 	struct lttng_viewer_attach_session_request rq;
@@ -254,8 +255,11 @@ int attach_session(int id)
 	cmd.cmd_version = 0;
 
 	rq.session_id = htobe64(id);
-	//rq.seek = htobe32(VIEWER_SEEK_BEGINNING);
-	rq.seek = htobe32(VIEWER_SEEK_LAST);
+	if (begin) {
+		rq.seek = htobe32(VIEWER_SEEK_BEGINNING);
+	} else {
+		rq.seek = htobe32(VIEWER_SEEK_LAST);
+	}
 
 	do {
 		ret = send(control_sock, &cmd, sizeof(cmd), 0);
@@ -801,7 +805,7 @@ end:
 	return ret;
 }
 
-int setup_network_live(char *hostname)
+int setup_network_live(char *hostname, int begin)
 {
 	int ret;
 	int session_id;
@@ -837,7 +841,7 @@ int setup_network_live(char *hostname)
 
 	do {
 		fprintf(stderr, "* Attach session %d\n", ret);
-		ret = attach_session(session_id);
+		ret = attach_session(session_id, begin);
 		if (ret < 0) {
 			goto error;
 		}

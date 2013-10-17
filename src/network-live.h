@@ -45,12 +45,11 @@ uint64_t ctf_get_real_timestamp(struct ctf_stream_definition *stream,
 
 int list_sessions(void);
 int write_index_header(int fd);
-int attach_session(int id);
 void dump_packet_index(struct lttng_packet_index *index);
 int get_next_index(int id, struct packet_index *index);
 void ctf_live_packet_seek(struct bt_stream_pos *stream_pos, size_t index,
 		int whence);
 int open_trace(struct bt_context **bt_ctx);
-int setup_network_live(char *hostname);
+int setup_network_live(char *hostname, int begin);
 
 #endif /* _LIVE_H */
