@@ -35,8 +35,11 @@ GHashTable *global_host_list;
 
 char *opt_tid;
 char *opt_hostname;
+char *opt_relay_hostname;
 char *opt_kprobes;
 GHashTable *tid_filter_list;
+
+int remote_live;
 
 int toggle_filter;
 
