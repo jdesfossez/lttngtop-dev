@@ -548,6 +548,8 @@ void usage(FILE *fp)
 	fprintf(fp, "  -f, --child              Follow threads associated with selected PIDs\n");
 	fprintf(fp, "  -n, --hostname           Comma-separated list of hostnames to display (require hostname context in trace)\n");
 	fprintf(fp, "  -k, --kprobes            Comma-separated list of kprobes to insert (same format as lttng enable-event)\n");
+	fprintf(fp, "  -r, --relay-hostname     Network live streaming : hostname of the lttng-relayd (default port)\n");
+	fprintf(fp, "  -b, --begin              Network live streaming : read the trace for the beginning of the recording\n");
 }
 
 /*

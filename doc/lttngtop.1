@@ -48,13 +48,34 @@ launched as root.
 
 .nf
 lttng create lttngtop
-lttng enable-event -k -a
-lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses -t perf:major-faults -t perf:branch-load-misses
-lttng start
+lttng enable-event -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switch -s lttngtop
+lttng enable-event -k --syscall -a -s lttngtop
+lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses -t perf:major-faults -t perf:branch-load-misses -s lttngtop
+lttng start lttngtop
 sleep 10
-lttng stop
-lttng destroy
+lttng stop lttngtop
+lttng destroy lttngtop
 .fi
+
+.SH "LIVE STREAMING"
+
+.PP
+In addition to offline traces, LTTngTop can read traces while they are being recorded.
+The official supported way of doing live streaming is using lttng-tools >=2.4 and
+following the documentation in live-reading-howto.txt.
+An other experimental way of doing live tracing is with mmap, but this requires some
+more work because is not officially supported and requires out-of-tree patches to
+lttng-tools and babeltrace.
+
+.PP
+To use the network live-reading, the user only needs to specify the relayd hostname
+or IP address with the option -r. For now, LTTngTop will only connect to the first
+live session established on the relay, but in a near future, the user will be able
+to choose which session to attach to.
+
+The default mode after attaching to a session is to start reading the trace from
+this point in time. In order to read the trace from the beginning, the user can specify
+the -b option.
 
 .SH "KEY BINDINGS"
 
