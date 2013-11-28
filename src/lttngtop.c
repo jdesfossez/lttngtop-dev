@@ -540,8 +540,8 @@ void init_lttngtop()
 void usage(FILE *fp)
 {
 	fprintf(fp, "LTTngTop %s\n\n", VERSION);
-	fprintf(fp, "Usage : lttngtop [OPTIONS] [TRACE]\n");
-	fprintf(fp, "  TRACE			Path to the trace to analyse (no trace path for live tracing)\n");
+	fprintf(fp, "Usage : lttngtop [OPTIONS] TRACE\n");
+	fprintf(fp, "  TRACE                    Path to the trace to analyse (-r for network live tracing, nothing for mmap live streaming)\n");
 	fprintf(fp, "  -h, --help               This help message\n");
 	fprintf(fp, "  -t, --textdump           Display live events in text-only\n");
 	fprintf(fp, "  -p, --pid                Comma-separated list of PIDs to display\n");
@@ -1039,7 +1039,10 @@ int main(int argc, char **argv)
 
 		goto end;
 #else
-		fprintf(stderr, "Mmap live support not compiled\n");
+		fprintf(stderr, "[ERROR] Mmap live support not compiled, specify a "
+				"trace directory or -r <relayd hostname/IP>\n");
+		usage(stdout);
+		ret = -1;
 		goto end;
 #endif /* LTTNGTOP_MMAP_LIVE */
 	} else if (!opt_input_path && remote_live) {
@@ -1080,9 +1083,11 @@ int main(int argc, char **argv)
 	quit = 1;
 	pthread_join(timer_thread, NULL);
 
+	ret = 0;
+
 end:
 	if (bt_ctx)
 		bt_context_put(bt_ctx);
 
-	return 0;
+	return ret;
 }
