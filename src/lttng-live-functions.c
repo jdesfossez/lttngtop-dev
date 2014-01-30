@@ -823,7 +823,7 @@ retry:
 		g_array_append_val(file_stream->pos.packet_real_index,
 				packet_index);
 
-		compute_discarded_events(file_stream, pos);
+		//compute_discarded_events(file_stream, pos);
 
 		packet_index = g_array_index(pos->packet_cycles_index,
 				struct packet_index, pos->cur_index);

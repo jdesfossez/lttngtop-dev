@@ -1,8 +1,8 @@
 AM_CFLAGS = $(PACKAGE_CFLAGS) -I$(top_srcdir)/lib -DBABELTRACE_HAVE_LIBUUID
 
-lib_LTLIBRARIES = libbabeltrace-lttng-live.la
+lib_LTLIBRARIES = libbabeltrace-lttngtop-live.la
 
-libbabeltrace_lttng_live_la_SOURCES = \
+libbabeltrace_lttngtop_live_la_SOURCES = \
 				      network-live.c lttng-live-functions.c
 
 bin_PROGRAMS = lttngtop
@@ -30,5 +30,5 @@ lttngtop_LDFLAGS = -Wl,--no-as-needed
 
 #lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttngtop-helper -llttng-ctl -lurcu -llttngtopmmappacketseek -llttng-ust-ctl -lcurses -lpanel
 lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttng-ctl -lurcu -llttng-ust-ctl -lcurses -lpanel \
-		 $(top_builddir)/src/libbabeltrace-lttng-live.la
+		 $(top_builddir)/src/libbabeltrace-lttngtop-live.la
 
