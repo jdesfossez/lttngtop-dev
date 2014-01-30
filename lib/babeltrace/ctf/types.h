@@ -61,7 +61,7 @@ struct packet_index {
 struct ctf_stream_pos {
 	struct bt_stream_pos parent;
 	int fd;			/* backing file fd. -1 if unset. */
-	int index_fd;		/* backing index file fd. -1 if unset. */
+	FILE *index_fp;		/* backing index file fp. NULL if unset. */
 	GArray *packet_cycles_index;	/* contains struct packet_index in cycles */
 	GArray *packet_real_index;	/* contains struct packet_index in ns */
 	int prot;		/* mmap protection */
@@ -76,6 +76,7 @@ struct ctf_stream_pos {
 	struct mmap_align *base_mma;/* mmap base address */
 	int64_t offset;		/* offset from base, in bits. EOF for end of file. */
 	int64_t last_offset;	/* offset before the last read_event */
+	int64_t data_offset;	/* offset of data in current packet */
 	uint64_t cur_index;	/* current index in packet index */
 	uint64_t last_events_discarded;	/* last known amount of event discarded */
 	void (*packet_seek)(struct bt_stream_pos *pos, size_t index,
@@ -83,6 +84,7 @@ struct ctf_stream_pos {
 
 	int dummy;		/* dummy position, for length calculation */
 	struct bt_stream_callbacks *cb;	/* Callbacks registered for iterator. */
+	void *priv;
 };
 
 static inline
@@ -129,45 +131,41 @@ int ctf_fini_pos(struct ctf_stream_pos *pos);
 /*
  * move_pos - move position of a relative bit offset
  *
+ * Return 1 if OK, 0 if out-of-bound.
+ *
  * TODO: allow larger files by updating base too.
  */
 static inline
-void ctf_move_pos(struct ctf_stream_pos *pos, uint64_t bit_offset)
+int ctf_move_pos(struct ctf_stream_pos *pos, uint64_t bit_offset)
 {
+	uint64_t max_len;
+
 	printf_debug("ctf_move_pos test EOF: %" PRId64 "\n", pos->offset);
 	if (unlikely(pos->offset == EOF))
-		return;
+		return 0;
+	if (pos->prot == PROT_READ)
+		max_len = pos->content_size;
+	else
+		max_len = pos->packet_size;
+	if (unlikely(pos->offset + bit_offset > max_len))
+		return 0;
 
-	if (pos->fd >= 0) {
-		/*
-		 * PROT_READ ctf_packet_seek is called from within
-		 * ctf_pos_get_event so end of packet does not change
-		 * the packet context on for the last event of the
-		 * packet.
-		 */
-		if ((pos->prot == PROT_WRITE)
-		    	&& (unlikely(pos->offset + bit_offset >= pos->packet_size))) {
-			printf_debug("ctf_packet_seek (before call): %" PRId64 "\n",
-				     pos->offset);
-			ctf_packet_seek(&pos->parent, 0, SEEK_CUR);
-			printf_debug("ctf_packet_seek (after call): %" PRId64 "\n",
-				     pos->offset);
-			return;
-		}
-	}
 	pos->offset += bit_offset;
 	printf_debug("ctf_move_pos after increment: %" PRId64 "\n", pos->offset);
+	return 1;
 }
 
 /*
  * align_pos - align position on a bit offset (> 0)
  *
+ * Return 1 if OK, 0 if out-of-bound.
+ *
  * TODO: allow larger files by updating base too.
  */
 static inline
-void ctf_align_pos(struct ctf_stream_pos *pos, uint64_t bit_offset)
+int ctf_align_pos(struct ctf_stream_pos *pos, uint64_t bit_offset)
 {
-	ctf_move_pos(pos, offset_align(pos->offset, bit_offset));
+	return ctf_move_pos(pos, offset_align(pos->offset, bit_offset));
 }
 
 static inline
@@ -202,21 +200,27 @@ int ctf_pos_packet(struct ctf_stream_pos *dummy)
 static inline
 void ctf_pos_pad_packet(struct ctf_stream_pos *pos)
 {
-	ctf_move_pos(pos, pos->packet_size - pos->offset);
+	ctf_packet_seek(&pos->parent, 0, SEEK_CUR);
 }
 
 static inline
 int ctf_pos_access_ok(struct ctf_stream_pos *pos, uint64_t bit_len)
 {
+	uint64_t max_len;
+
 	if (unlikely(pos->offset == EOF))
 		return 0;
-	if (unlikely(pos->offset + bit_len > pos->packet_size))
+	if (pos->prot == PROT_READ)
+		max_len = pos->content_size;
+	else
+		max_len = pos->packet_size;
+	if (unlikely(pos->offset + bit_len > max_len))
 		return 0;
 	return 1;
 }
 
 /*
- * Update the stream position for to the current event. This moves to
+ * Update the stream position to the current event. This moves to
  * the next packet if we are located at the end of the current packet.
  */
 static inline

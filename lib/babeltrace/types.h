@@ -435,6 +435,10 @@ struct declaration_string *
 char *bt_get_string(const struct bt_definition *field);
 enum ctf_string_encoding bt_get_string_encoding(const struct bt_definition *field);
 
+double bt_get_float(const struct bt_definition *field);
+
+const struct bt_definition *bt_get_variant_field(struct bt_definition *definition);
+
 struct declaration_struct *
 	bt_struct_declaration_new(struct declaration_scope *parent_scope,
 			       uint64_t min_align);
@@ -453,10 +457,10 @@ struct declaration_field *
 bt_struct_declaration_get_field_from_index(struct declaration_struct *struct_declaration,
 					int index);
 struct bt_definition *
-bt_struct_definition_get_field_from_index(struct definition_struct *struct_definition,
+bt_struct_definition_get_field_from_index(const struct definition_struct *struct_definition,
 				       int index);
 int bt_struct_rw(struct bt_stream_pos *pos, struct bt_definition *definition);
-uint64_t bt_struct_declaration_len(struct declaration_struct *struct_declaration);
+uint64_t bt_struct_declaration_len(const struct declaration_struct *struct_declaration);
 
 /*
  * The tag enumeration is validated to ensure that it contains only mappings

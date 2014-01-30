@@ -52,14 +52,16 @@
 #include "common.h"
 #include "network-live.h"
 
-#include "ctf-index.h"
+#define NET_URL_PREFIX	"net://"
+#define NET4_URL_PREFIX	"net4://"
+#define NET6_URL_PREFIX	"net6://"
 
 #define DEFAULT_FILE_ARRAY_SIZE 1
 
 const char *opt_input_path;
-static int opt_textdump;
-static int opt_child;
-static int opt_begin;
+int opt_textdump;
+int opt_child;
+int opt_begin;
 
 int quit = 0;
 
@@ -831,6 +833,19 @@ int bt_context_add_traces_recursive(struct bt_context *ctx, const char *path,
 	char * const paths[2] = { lpath, NULL };
 	int ret = -1;
 
+	if ((strncmp(path, NET4_URL_PREFIX, sizeof(NET4_URL_PREFIX) - 1)) == 0 ||
+			(strncmp(path, NET6_URL_PREFIX, sizeof(NET6_URL_PREFIX) - 1)) == 0 ||
+			(strncmp(path, NET_URL_PREFIX, sizeof(NET_URL_PREFIX) - 1)) == 0) {
+		ret = bt_context_add_trace(ctx,
+				path, format_str, packet_seek, NULL, NULL);
+		if (ret < 0) {
+			fprintf(stderr, "[warning] [Context] cannot open trace \"%s\" "
+					"for reading.\n", path);
+			/* Allow to skip erroneous traces. */
+			ret = 1;	/* partial error */
+		}
+		return ret;
+	}
 	/*
 	 * Need to copy path, because fts_open can change it.
 	 * It is the pointer array, not the strings, that are constant.
@@ -1047,6 +1062,7 @@ int main(int argc, char **argv)
 #endif /* LTTNGTOP_MMAP_LIVE */
 	} else if (!opt_input_path && remote_live) {
 		/* network live */
+#if 0
 		ret = setup_network_live(opt_relay_hostname, opt_begin);
 		if (ret < 0) {
 			goto end;
@@ -1054,6 +1070,15 @@ int main(int argc, char **argv)
 
 		ret = open_trace(&bt_ctx);
 		if (ret < 0) {
+			goto end;
+		}
+#endif
+
+		bt_ctx = bt_context_create();
+		ret = bt_context_add_traces_recursive(bt_ctx, opt_relay_hostname,
+				"lttng-live", NULL);
+		if (ret < 0) {
+			fprintf(stderr, "[error] Opening the trace\n");
 			goto end;
 		}
 	} else {
@@ -1065,19 +1090,24 @@ int main(int argc, char **argv)
 			fprintf(stderr, "[error] Opening the trace\n");
 			goto end;
 		}
+
+		ret = check_requirements(bt_ctx);
+		if (ret < 0) {
+			fprintf(stderr, "[error] some mandatory contexts "
+					"were missing, exiting.\n");
+			goto end;
+		}
+
+		if (!opt_textdump) {
+			pthread_create(&display_thread, NULL, ncurses_display,
+					(void *) NULL);
+			pthread_create(&timer_thread, NULL, refresh_thread,
+					(void *) NULL);
+		}
+
+		iter_trace(bt_ctx);
 	}
 
-	ret = check_requirements(bt_ctx);
-	if (ret < 0) {
-		fprintf(stderr, "[error] some mandatory contexts were missing, exiting.\n");
-		goto end;
-	}
-	if (!opt_textdump) {
-		pthread_create(&display_thread, NULL, ncurses_display, (void *) NULL);
-		pthread_create(&timer_thread, NULL, refresh_thread, (void *) NULL);
-	}
-
-	iter_trace(bt_ctx);
 
 	pthread_join(display_thread, NULL);
 	quit = 1;

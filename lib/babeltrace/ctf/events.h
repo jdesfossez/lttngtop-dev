@@ -212,6 +212,12 @@ enum ctf_string_encoding bt_ctf_get_encoding(const struct bt_declaration *decl);
 int bt_ctf_get_array_len(const struct bt_declaration *decl);
 
 /*
+ * bt_ctf_get_struct_field_count: return the number of fields in a structure.
+ * Returns a negative value on error.
+ */
+uint64_t bt_ctf_get_struct_field_count(const struct bt_definition *field);
+
+/*
  * Field access functions
  *
  * These functions return the value associated with the field passed in
@@ -231,6 +237,10 @@ const struct bt_definition *bt_ctf_get_enum_int(const struct bt_definition *fiel
 const char *bt_ctf_get_enum_str(const struct bt_definition *field);
 char *bt_ctf_get_char_array(const struct bt_definition *field);
 char *bt_ctf_get_string(const struct bt_definition *field);
+double bt_ctf_get_float(const struct bt_definition *field);
+const struct bt_definition *bt_ctf_get_variant(const struct bt_definition *field);
+const struct bt_definition *bt_ctf_get_struct_field_index(
+		const struct bt_definition *field, uint64_t i);
 
 /*
  * bt_ctf_field_get_error: returns the last error code encountered while
