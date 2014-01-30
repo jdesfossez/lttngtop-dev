@@ -52,7 +52,7 @@
 #include "common.h"
 #include "network-live.h"
 
-#include "lttng-index.h"
+#include "ctf-index.h"
 
 #define DEFAULT_FILE_ARRAY_SIZE 1
 

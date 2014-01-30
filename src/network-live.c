@@ -35,7 +35,7 @@
 #include <sys/mman.h>
 
 #include "lttng-viewer.h"
-#include "lttng-index.h"
+#include "ctf-index.h"
 #include "network-live.h"
 
 #include <babeltrace/babeltrace.h>
@@ -215,27 +215,6 @@ int list_sessions(void)
 
 	/* I know, type mismatch */
 	ret = (int) first_session;
-
-error:
-	return ret;
-}
-
-int write_index_header(int fd)
-{
-	struct lttng_packet_index_file_hdr hdr;
-	int ret;
-
-	memcpy(hdr.magic, INDEX_MAGIC, sizeof(hdr.magic));
-	hdr.index_major = htobe32(INDEX_MAJOR);
-	hdr.index_minor = htobe32(INDEX_MINOR);
-
-	do {
-		ret = write(fd, &hdr, sizeof(hdr));
-	} while (ret < 0 && errno == EINTR);
-	if (ret < 0) {
-		perror("write index header");
-		goto error;
-	}
 
 error:
 	return ret;
@@ -675,6 +654,11 @@ void ctf_live_packet_seek(struct bt_stream_pos *stream_pos, size_t index,
 	pos->content_size = packet_index.content_size;
 	pos->mmap_base_offset = 0;
 	pos->offset = 0;
+	if (packet_index.offset == EOF) {
+		pos->offset = EOF;
+	} else {
+		pos->offset = 0;
+	}
 
 	file_stream->parent.cycles_timestamp = packet_index.timestamp_end;
 	file_stream->parent.real_timestamp = ctf_get_real_timestamp(

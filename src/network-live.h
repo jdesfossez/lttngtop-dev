@@ -21,7 +21,7 @@
 #include <lib/babeltrace/ctf/types.h>
 #include <lib/babeltrace/ctf-ir/metadata.h>
 #include <lib/babeltrace/clock-internal.h>
-#include "lttng-index.h"
+#include "ctf-index.h"
 
 /* Copied from babeltrace/formats/ctf/events-private.h */
 static inline
@@ -44,8 +44,7 @@ uint64_t ctf_get_real_timestamp(struct ctf_stream_definition *stream,
 }
 
 int list_sessions(void);
-int write_index_header(int fd);
-void dump_packet_index(struct lttng_packet_index *index);
+void dump_packet_index(struct ctf_packet_index *index);
 int get_next_index(int id, struct packet_index *index);
 void ctf_live_packet_seek(struct bt_stream_pos *stream_pos, size_t index,
 		int whence);
