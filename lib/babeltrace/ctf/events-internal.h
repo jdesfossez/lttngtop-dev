@@ -38,7 +38,6 @@
 #include <glib.h>
 
 struct ctf_stream_definition;
-struct ctf_file_stream;
 
 /*
  * These structures are public mappings to internal ctf_event structures.
@@ -82,7 +81,5 @@ struct bt_ctf_iter {
 
 void ctf_print_discarded(FILE *fp, struct ctf_stream_definition *stream,
 			int end_stream);
-void compute_discarded_events(struct ctf_file_stream *file_stream,
-		struct ctf_stream_pos *pos);
 
 #endif /*_BABELTRACE_CTF_EVENTS_INTERNAL_H */
