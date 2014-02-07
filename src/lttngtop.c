@@ -238,9 +238,28 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	}
 	
 	hostname = get_context_hostname(call_data);
-	if (opt_tid || opt_hostname)
-		if (!lookup_filter_tid_list(pid))
-			goto end;
+	if (opt_tid || opt_hostname) {
+		if (!lookup_filter_tid_list(pid)) {
+			/* To display when a process of ours in getting scheduled in */
+			if (strcmp(bt_ctf_event_name(call_data), "sched_switch") == 0) {
+				int next_tid;
+
+				scope = bt_ctf_get_top_level_scope(call_data,
+						BT_EVENT_FIELDS);
+				next_tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+							scope, "_next_tid"));
+				if (bt_ctf_field_get_error()) {
+					fprintf(stderr, "Missing next_tid field\n");
+					goto error;
+				}
+				if (!lookup_filter_tid_list(next_tid)) {
+					goto end;
+				}
+			} else {
+				goto end;
+			}
+		}
+	}
 
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
