@@ -3,7 +3,7 @@ AM_CFLAGS = $(PACKAGE_CFLAGS) -I$(top_srcdir)/lib -DBABELTRACE_HAVE_LIBUUID
 lib_LTLIBRARIES = libbabeltrace-lttngtop-live.la
 
 libbabeltrace_lttngtop_live_la_SOURCES = \
-				      network-live.c lttng-live-functions.c
+				      network-live.c liblttng-live.c
 
 bin_PROGRAMS = lttngtop
 
@@ -15,7 +15,7 @@ noinst_HEADERS = \
 	iostreamtop.h \
 	mmap-live.h \
 	network-live.h \
-	lttng-live-functions.h \
+	liblttng-live.h \
 	lttngtop.h
 
 lttngtop_SOURCES = \
