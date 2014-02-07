@@ -34,7 +34,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#include "lttng-viewer.h"
+#include "lttng-viewer-abi.h"
 #include "network-live.h"
 #include "liblttng-live.h"
 

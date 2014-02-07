@@ -54,7 +54,7 @@ replaced with
 #include "network-live.h"
 
 #include "liblttng-live.h"
-#include "lttng-viewer.h"
+#include "lttng-viewer-abi.h"
 #include "lttngtop.h"
 
 /*

@@ -16,6 +16,7 @@ noinst_HEADERS = \
 	mmap-live.h \
 	network-live.h \
 	liblttng-live.h \
+	lttng-viewer-abi.h \
 	lttngtop.h
 
 lttngtop_SOURCES = \
