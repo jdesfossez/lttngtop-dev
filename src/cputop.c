@@ -20,6 +20,7 @@
 #include "lttngtoptypes.h"
 #include "common.h"
 #include "cputop.h"
+#include "lttngtop.h"
 
 void update_cputop_data(unsigned long timestamp, int64_t cpu, int prev_pid,
 		int next_pid, char *prev_comm, char *next_comm, char *hostname)
@@ -131,6 +132,58 @@ enum bt_cb_ret handle_sched_process_free(struct bt_ctf_event *call_data,
 	}
 
 	death_proc(&lttngtop, tid, comm, timestamp);
+
+	return BT_CB_OK;
+
+error:
+	return BT_CB_ERROR_STOP;
+
+}
+
+enum bt_cb_ret handle_sched_process_fork(struct bt_ctf_event *call_data,
+		void *private_data)
+{
+	const struct bt_definition *scope;
+	struct processtop *tmp;
+	int tid, *hash_tid, parent_pid;
+	unsigned long timestamp;
+	char *comm;
+
+	timestamp = bt_ctf_get_timestamp(call_data);
+	if (timestamp == -1ULL)
+		goto error;
+
+	scope = bt_ctf_get_top_level_scope(call_data,
+			BT_EVENT_FIELDS);
+	comm = bt_ctf_get_char_array(bt_ctf_get_field(call_data,
+				scope, "_child_comm"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing procname context info\n");
+		goto error;
+	}
+
+	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+				scope, "_child_tid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing child_tid field\n");
+		goto error;
+	}
+
+	parent_pid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+				scope, "_parent_pid"));
+	if (bt_ctf_field_get_error()) {
+		fprintf(stderr, "Missing parent_pid field\n");
+		goto error;
+	}
+
+	tmp = get_proc(&lttngtop, tid, comm, timestamp, NULL);
+
+	if (opt_child) {
+		hash_tid = lookup_filter_tid_list(parent_pid);
+		if (hash_tid) {
+			add_filter_tid_list(tmp);
+		}
+	}
 
 	return BT_CB_OK;
 

@@ -662,7 +662,6 @@ static int parse_options(int argc, char **argv)
 				opt_textdump = 1;
 				break;
 			case OPT_CHILD:
-				opt_textdump = 1;
 				opt_child = 1;
 				break;
 			case OPT_PID:
@@ -742,6 +741,10 @@ void iter_trace(struct bt_context *bt_ctx)
 	bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 			fix_process_table,
 			NULL, NULL, NULL);
+	/* to handle the follow child option */
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("sched_process_fork"),
+			NULL, 0, handle_sched_process_fork, NULL, NULL, NULL);
 	if (opt_textdump) {
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 				print_timestamp,

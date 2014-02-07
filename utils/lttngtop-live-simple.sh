@@ -44,7 +44,7 @@ fi
 
 lttng create $SESSION_NAME --live 1000000 -U net://localhost >/dev/null
 [[ $? != 0 ]] && exit 2
-lttng enable-event -s $SESSION_NAME -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switch >/dev/null
+lttng enable-event -s $SESSION_NAME -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switch,sched_process_fork >/dev/null
 [[ $? != 0 ]] && exit 2
 lttng enable-event -s $SESSION_NAME -k --syscall -a >/dev/null
 [[ $? != 0 ]] && exit 2
