@@ -812,27 +812,9 @@ retry:
 		file_stream->parent.real_timestamp = ctf_get_real_timestamp(
 				&file_stream->parent, packet_index.timestamp_end);
 	} else {
-		/* Append to the cycles_index. */
-		g_array_append_val(file_stream->pos.packet_cycles_index,
-				packet_index);
-		/* Convert the timestamps and append to the real_index. */
-		packet_index.timestamp_begin = ctf_get_real_timestamp(
-				&file_stream->parent, packet_index.timestamp_begin);
-		packet_index.timestamp_end = ctf_get_real_timestamp(
-				&file_stream->parent, packet_index.timestamp_end);
-		g_array_append_val(file_stream->pos.packet_real_index,
-				packet_index);
-
-		//compute_discarded_events(file_stream, pos);
-
-		packet_index = g_array_index(pos->packet_cycles_index,
-				struct packet_index, pos->cur_index);
 		file_stream->parent.cycles_timestamp = packet_index.timestamp_begin;
-
-		packet_index = g_array_index(pos->packet_real_index,
-				struct packet_index, pos->cur_index);
-		file_stream->parent.real_timestamp = packet_index.timestamp_begin;
-		++pos->cur_index;
+		file_stream->parent.real_timestamp = ctf_get_real_timestamp(
+				&file_stream->parent, packet_index.timestamp_begin);
 	}
 
 	if (pos->packet_size == 0 || pos->offset == EOF) {
