@@ -217,7 +217,6 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	struct tm start;
 	uint64_t ts_nsec_start;
 	int pid, cpu_id;
-	int64_t syscall_ret;
 	const struct bt_definition *scope;
 	const char *hostname, *procname;
 
@@ -264,39 +263,19 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
 
-	if ((strcmp(bt_ctf_event_name(call_data), "exit_syscall") == 0) &&
-			!last_textdump_print_newline) {
-		scope = bt_ctf_get_top_level_scope(call_data,
-				BT_EVENT_FIELDS);
-		syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
-					scope, "_ret"));
-		printf("= %ld\n", syscall_ret);
-		last_textdump_print_newline = 1;
+	if (hostname) {
+		printf("%02d:%02d:%02d.%09" PRIu64 " (%s) (cpu %d) [%s (%d)] %s (",
+				start.tm_hour, start.tm_min, start.tm_sec,
+				ts_nsec_start, hostname, cpu_id, procname, pid,
+				bt_ctf_event_name(call_data));
 	} else {
-		/* we might have lost the exit_syscall event, so need to
-		 * print the newline in this case */
-		if (last_textdump_print_newline == 0)
-			printf("\n");
-		if (hostname) {
-			printf("%02d:%02d:%02d.%09" PRIu64 " (%s) (cpu %d) [%s (%d)] %s (",
-					start.tm_hour, start.tm_min, start.tm_sec,
-					ts_nsec_start, hostname, cpu_id, procname, pid,
-					bt_ctf_event_name(call_data));
-		} else {
-			printf("%02d:%02d:%02d.%09" PRIu64 " (cpu %d) [%s (%d)] %s (",
-					start.tm_hour, start.tm_min, start.tm_sec,
-					ts_nsec_start, cpu_id, procname, pid,
-					bt_ctf_event_name(call_data));
-		}
-		print_fields(call_data);
-		printf(") ");
-		if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) != 0) {
-			printf("\n");
-			last_textdump_print_newline = 1;
-		} else {
-			last_textdump_print_newline = 0;
-		}
+		printf("%02d:%02d:%02d.%09" PRIu64 " (cpu %d) [%s (%d)] %s (",
+				start.tm_hour, start.tm_min, start.tm_sec,
+				ts_nsec_start, cpu_id, procname, pid,
+				bt_ctf_event_name(call_data));
 	}
+	print_fields(call_data);
+	printf(")\n");
 
 end:
 	return BT_CB_OK;
