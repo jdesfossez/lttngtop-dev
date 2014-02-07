@@ -83,6 +83,8 @@ GPtrArray *available_snapshots;
 sem_t metadata_available;
 int reload_trace = 0;
 
+uint64_t prev_ts = 0;
+
 enum {
 	OPT_NONE = 0,
 	OPT_HELP,
@@ -212,6 +214,7 @@ void print_fields(struct bt_ctf_event *event)
 enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_data)
 {
 	unsigned long timestamp;
+	uint64_t delta;
 	struct tm start;
 	uint64_t ts_nsec_start;
 	int pid, cpu_id, tid;
@@ -262,17 +265,26 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
+	if (prev_ts == 0)
+		prev_ts = timestamp;
+	delta = timestamp - prev_ts;
+	prev_ts = timestamp;
 
 	if (hostname) {
-		printf("%02d:%02d:%02d.%09" PRIu64 " (%s) (cpu %d) [%s (%d/%d)] %s (",
+		printf("%02d:%02d:%02d.%09" PRIu64 " (+%" PRIu64 ".%09" PRIu64 ") (%s) "
+				"(cpu %d) [%s (%d/%d)] %s (",
 				start.tm_hour, start.tm_min, start.tm_sec,
-				ts_nsec_start, hostname, cpu_id, procname, pid,
-				tid, bt_ctf_event_name(call_data));
-	} else {
-		printf("%02d:%02d:%02d.%09" PRIu64 " (cpu %d) [%s (%d/%d)] %s (",
-				start.tm_hour, start.tm_min, start.tm_sec,
-				ts_nsec_start, cpu_id, procname, pid, tid,
+				ts_nsec_start, delta / NSEC_PER_SEC,
+				delta % NSEC_PER_SEC, hostname, cpu_id,
+				procname, pid, tid,
 				bt_ctf_event_name(call_data));
+	} else {
+		printf("%02d:%02d:%02d.%09" PRIu64 " (+%" PRIu64 ".%09" PRIu64 ") "
+				"(cpu %d) [%s (%d/%d)] %s (",
+				start.tm_hour, start.tm_min, start.tm_sec,
+				ts_nsec_start, delta  / NSEC_PER_SEC,
+				delta % NSEC_PER_SEC, cpu_id, procname, pid,
+				tid, bt_ctf_event_name(call_data));
 	}
 	print_fields(call_data);
 	printf(")\n");
