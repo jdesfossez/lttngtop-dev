@@ -258,10 +258,17 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		 * print the newline in this case */
 		if (last_textdump_print_newline == 0)
 			printf("\n");
-		printf("%02d:%02d:%02d.%09" PRIu64 " (%s) (cpu %d) [%s (%d)] %s (",
-				start.tm_hour, start.tm_min, start.tm_sec,
-				ts_nsec_start, hostname, cpu_id, procname, pid,
-				bt_ctf_event_name(call_data));
+		if (hostname) {
+			printf("%02d:%02d:%02d.%09" PRIu64 " (%s) (cpu %d) [%s (%d)] %s (",
+					start.tm_hour, start.tm_min, start.tm_sec,
+					ts_nsec_start, hostname, cpu_id, procname, pid,
+					bt_ctf_event_name(call_data));
+		} else {
+			printf("%02d:%02d:%02d.%09" PRIu64 " (cpu %d) [%s (%d)] %s (",
+					start.tm_hour, start.tm_min, start.tm_sec,
+					ts_nsec_start, cpu_id, procname, pid,
+					bt_ctf_event_name(call_data));
+		}
 		print_fields(call_data);
 		printf(") ");
 		if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) != 0) {
