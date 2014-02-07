@@ -270,22 +270,13 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	delta = timestamp - prev_ts;
 	prev_ts = timestamp;
 
-	if (hostname) {
-		printf("%02d:%02d:%02d.%09" PRIu64 " (+%" PRIu64 ".%09" PRIu64 ") (%s) "
-				"(cpu %d) [%s (%d/%d)] %s (",
-				start.tm_hour, start.tm_min, start.tm_sec,
-				ts_nsec_start, delta / NSEC_PER_SEC,
-				delta % NSEC_PER_SEC, hostname, cpu_id,
-				procname, pid, tid,
-				bt_ctf_event_name(call_data));
-	} else {
-		printf("%02d:%02d:%02d.%09" PRIu64 " (+%" PRIu64 ".%09" PRIu64 ") "
-				"(cpu %d) [%s (%d/%d)] %s (",
-				start.tm_hour, start.tm_min, start.tm_sec,
-				ts_nsec_start, delta  / NSEC_PER_SEC,
-				delta % NSEC_PER_SEC, cpu_id, procname, pid,
-				tid, bt_ctf_event_name(call_data));
-	}
+	printf("%02d:%02d:%02d.%09" PRIu64 " (+%" PRIu64 ".%09" PRIu64 ") %s%s"
+			"(cpu %d) [%s (%d/%d)] %s (",
+			start.tm_hour, start.tm_min, start.tm_sec,
+			ts_nsec_start, delta / NSEC_PER_SEC,
+			delta % NSEC_PER_SEC, (hostname) ? hostname : "",
+			(hostname) ? " ": "", cpu_id, procname, pid, tid,
+			bt_ctf_event_name(call_data));
 	print_fields(call_data);
 	printf(")\n");
 
