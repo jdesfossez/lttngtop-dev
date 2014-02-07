@@ -220,6 +220,8 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	int pid, cpu_id, tid;
 	const struct bt_definition *scope;
 	const char *hostname, *procname;
+	struct cputime *cpu;
+	char *from_syscall = NULL;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
@@ -265,6 +267,30 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
+	if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) == 0) {
+		cpu = get_cpu(cpu_id);
+		cpu->current_syscall = g_new0(struct syscall, 1);
+		cpu->current_syscall->name = strdup(bt_ctf_event_name(call_data));
+		cpu->current_syscall->ts_start = timestamp;
+	} else if ((strncmp(bt_ctf_event_name(call_data), "exit_syscall", 12)) == 0) {
+		struct tm start_ts;
+
+		cpu = get_cpu(cpu_id);
+		if (cpu->current_syscall) {
+			delta = timestamp - cpu->current_syscall->ts_start;
+			start_ts = format_timestamp(cpu->current_syscall->ts_start);
+			asprintf(&from_syscall, " [from %02d:%02d:%02d.%09" PRIu64
+					" (+%" PRIu64 ".%09" PRIu64 ") (cpu %d) %s]\n",
+					start_ts.tm_hour, start_ts.tm_min, start_ts.tm_sec,
+					cpu->current_syscall->ts_start % NSEC_PER_SEC,
+					delta / NSEC_PER_SEC, delta % NSEC_PER_SEC,
+					cpu_id, cpu->current_syscall->name);
+			free(cpu->current_syscall->name);
+			g_free(cpu->current_syscall);
+			cpu->current_syscall = NULL;
+		}
+	}
+
 	if (prev_ts == 0)
 		prev_ts = timestamp;
 	delta = timestamp - prev_ts;
@@ -278,7 +304,9 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 			(hostname) ? " ": "", cpu_id, procname, pid, tid,
 			bt_ctf_event_name(call_data));
 	print_fields(call_data);
-	printf(")\n");
+	printf(")%s", (from_syscall) ? from_syscall : "\n");
+
+	free(from_syscall);
 
 end:
 	return BT_CB_OK;

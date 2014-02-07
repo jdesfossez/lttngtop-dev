@@ -79,6 +79,7 @@ struct cputime {
 	struct processtop *current_task;
 	unsigned long task_start;
 	GHashTable *perf;
+	struct syscall *current_syscall;
 };
 
 /*
@@ -150,6 +151,11 @@ struct vmas {
 	unsigned long prot;
 	char *description; /* filename or description if possible (stack, heap) */
 	unsigned long page_faults;
+};
+
+struct syscall {
+	char *name;
+	unsigned long ts_start;
 };
 
 struct syscalls {
