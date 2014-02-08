@@ -218,7 +218,7 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	uint64_t delta;
 	struct tm start;
 	uint64_t ts_nsec_start;
-	int pid, cpu_id, tid, ret;
+	int pid, cpu_id, tid, ret, lookup;
 	const struct bt_definition *scope;
 	const char *hostname, *procname;
 	struct cputime *cpu;
@@ -243,8 +243,12 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	tid = get_context_tid(call_data);
 	
 	hostname = get_context_hostname(call_data);
+	if (opt_child)
+		lookup = pid;
+	else
+		lookup = tid;
 	if (opt_tid || opt_hostname || opt_exec_name) {
-		if (!lookup_filter_tid_list(pid)) {
+		if (!lookup_filter_tid_list(lookup)) {
 			/* To display when a process of ours in getting scheduled in */
 			if (strcmp(bt_ctf_event_name(call_data), "sched_switch") == 0) {
 				int next_tid;
