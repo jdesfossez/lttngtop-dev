@@ -64,6 +64,7 @@ int opt_textdump;
 int opt_child;
 int opt_begin;
 int opt_all;
+int opt_fd_path;
 
 int quit = 0;
 
@@ -99,6 +100,7 @@ enum {
 	OPT_KPROBES,
 	OPT_BEGIN,
 	OPT_ALL,
+	OPT_FD_PATH,
 };
 
 static struct poptOption long_options[] = {
@@ -113,6 +115,7 @@ static struct poptOption long_options[] = {
 		OPT_RELAY_HOSTNAME, NULL, NULL },
 	{ "kprobes", 'k', POPT_ARG_STRING, &opt_kprobes, OPT_KPROBES, NULL, NULL },
 	{ "all", 'a', POPT_ARG_NONE, NULL, OPT_ALL, NULL, NULL },
+	{ NULL, 'y', POPT_ARG_NONE, NULL, OPT_FD_PATH, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -179,7 +182,8 @@ void *ncurses_display(void *p)
 	}
 }
 
-void print_fields(struct bt_ctf_event *event)
+void print_fields(struct bt_ctf_event *event, const char *procname,
+		int pid)
 {
 	unsigned int cnt, i;
 	const struct bt_definition *const * list;
@@ -187,6 +191,9 @@ void print_fields(struct bt_ctf_event *event)
 	const struct bt_definition *scope;
 	enum ctf_type_id type;
 	const char *str;
+	struct processtop *current_proc;
+	struct files *current_file;
+	int fd, fd_value = -1;
 
 	scope = bt_ctf_get_top_level_scope(event, BT_EVENT_FIELDS);
 
@@ -196,18 +203,34 @@ void print_fields(struct bt_ctf_event *event)
 			printf(", ");
 		printf("%s = ", bt_ctf_field_name(list[i]));
 		l = bt_ctf_get_decl_from_def(list[i]);
+		if (strncmp(bt_ctf_field_name(list[i]), "fd", 2) == 0)
+			fd = 1;
+		else
+			fd = 0;
 		type = bt_ctf_field_type(l);
 		if (type == CTF_TYPE_INTEGER) {
-			if (bt_ctf_get_int_signedness(l) == 0)
-				printf("%" PRIu64 "", bt_ctf_get_uint64(list[i]));
-			else
-				printf("%" PRId64 "", bt_ctf_get_int64(list[i]));
+			if (bt_ctf_get_int_signedness(l) == 0) {
+				fd_value = bt_ctf_get_uint64(list[i]);
+				printf("%" PRIu64, bt_ctf_get_uint64(list[i]));
+			} else {
+				fd_value = bt_ctf_get_int64(list[i]);
+				printf("%" PRId64, bt_ctf_get_int64(list[i]));
+			}
 		} else if (type == CTF_TYPE_STRING) {
 			printf("%s", bt_ctf_get_string(list[i]));
 		} else if (type == CTF_TYPE_ARRAY) {
 			str = bt_ctf_get_char_array(list[i]);
 			if (!bt_ctf_field_get_error() && str)
 				printf("%s", str);
+		}
+		if (fd) {
+			current_proc = find_process_tid(&lttngtop, pid, procname);
+			if (!current_proc)
+				continue;
+			current_file = get_file(current_proc, fd_value);
+			if (!current_file || !current_file->name)
+				continue;
+			printf("<%s>", current_file->name);
 		}
 	}
 }
@@ -311,7 +334,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 				syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 							scope, "_ret"));
 
-				printf(" = %" PRId64 " (+%" PRIu64 ".%09" PRIu64 ")\n",
+				printf("= %" PRId64 " (+%" PRIu64 ".%09" PRIu64 ")\n",
 						syscall_ret, delta / NSEC_PER_SEC,
 						delta % NSEC_PER_SEC);
 				last_syscall = NULL;
@@ -354,12 +377,13 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 			delta % NSEC_PER_SEC, (hostname) ? hostname : "",
 			(hostname) ? " ": "", cpu_id, procname, pid, tid,
 			bt_ctf_event_name(call_data));
-	print_fields(call_data);
+	print_fields(call_data, procname, pid);
 	printf(")%s%c", (from_syscall) ? from_syscall : "",
-			(current_syscall) ? '\0' : '\n');
+			(!current_syscall) ? '\n' : ' ');
 
 	free(from_syscall);
-	printf("%c[0m", 27);
+	if (opt_all && (opt_tid || opt_hostname || opt_exec_name))
+		printf("%c[0m", 27);
 
 end:
 	return BT_CB_OK;
@@ -750,6 +774,9 @@ static int parse_options(int argc, char **argv)
 			case OPT_ALL:
 				opt_all = 1;
 				break;
+			case OPT_FD_PATH:
+				opt_fd_path = 1;
+				break;
 			case OPT_CHILD:
 				opt_child = 1;
 				break;
@@ -847,6 +874,26 @@ void iter_trace(struct bt_context *bt_ctx)
 	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("sched_process_free"),
 			NULL, 0, handle_sched_process_free, NULL, NULL, NULL);
+	/* to get all the process from the statedumps */
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string(
+				"lttng_statedump_process_state"),
+			NULL, 0, handle_statedump_process_state,
+			NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string(
+				"lttng_statedump_file_descriptor"),
+			NULL, 0, handle_statedump_file_descriptor,
+			NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("sys_open"),
+			NULL, 0, handle_sys_open, NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("sys_close"),
+			NULL, 0, handle_sys_close, NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("exit_syscall"),
+			NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
 	if (opt_textdump) {
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 				textdump,
@@ -860,34 +907,13 @@ void iter_trace(struct bt_context *bt_ctx)
 		bt_ctf_iter_add_callback(iter,
 				g_quark_from_static_string("sched_switch"),
 				NULL, 0, handle_sched_switch, NULL, NULL, NULL);
-		/* to get all the process from the statedumps */
-		bt_ctf_iter_add_callback(iter,
-				g_quark_from_static_string(
-					"lttng_statedump_process_state"),
-				NULL, 0, handle_statedump_process_state,
-				NULL, NULL, NULL);
-
 		/* for IO top */
-		bt_ctf_iter_add_callback(iter,
-				g_quark_from_static_string("exit_syscall"),
-				NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
 		bt_ctf_iter_add_callback(iter,
 				g_quark_from_static_string("sys_write"),
 				NULL, 0, handle_sys_write, NULL, NULL, NULL);
 		bt_ctf_iter_add_callback(iter,
 				g_quark_from_static_string("sys_read"),
 				NULL, 0, handle_sys_read, NULL, NULL, NULL);
-		bt_ctf_iter_add_callback(iter,
-				g_quark_from_static_string("sys_open"),
-				NULL, 0, handle_sys_open, NULL, NULL, NULL);
-		bt_ctf_iter_add_callback(iter,
-				g_quark_from_static_string("sys_close"),
-				NULL, 0, handle_sys_close, NULL, NULL, NULL);
-		bt_ctf_iter_add_callback(iter,
-				g_quark_from_static_string(
-					"lttng_statedump_file_descriptor"),
-				NULL, 0, handle_statedump_file_descriptor,
-				NULL, NULL, NULL);
 
 		/* for kprobes */
 		if (lttngtop.kprobes_table) {

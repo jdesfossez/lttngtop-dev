@@ -51,7 +51,7 @@ extern int quit;
 
 struct lttngtop *data;
 
-struct processtop *find_process_tid(struct lttngtop *ctx, int pid, char *comm);
+struct processtop *find_process_tid(struct lttngtop *ctx, int pid, const char *comm);
 struct processtop* add_proc(struct lttngtop *ctx, int pid, char *comm,
 		unsigned long timestamp, char *hostname);
 struct processtop* update_proc(struct processtop* proc, int pid, int tid,

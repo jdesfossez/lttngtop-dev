@@ -164,7 +164,7 @@ char *get_context_hostname(const struct bt_ctf_event *event)
  * To get the parent process, put the pid in the tid field
  * because the parent process gets pid = tid
  */
-struct processtop *find_process_tid(struct lttngtop *ctx, int tid, char *comm)
+struct processtop *find_process_tid(struct lttngtop *ctx, int tid, const char *comm)
 {
 	struct processtop *tmp;
 
