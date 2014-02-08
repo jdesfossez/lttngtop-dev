@@ -73,6 +73,7 @@ pthread_t timer_thread;
 unsigned long refresh_display = 1 * NSEC_PER_SEC;
 unsigned long last_display_update = 0;
 unsigned long last_event_ts = 0;
+struct syscall *last_syscall;
 
 /* list of FDs available for being read with snapshots */
 struct bt_mmap_stream_list mmap_list;
@@ -212,13 +213,13 @@ void print_fields(struct bt_ctf_event *event)
  * hook on each event to check the timestamp and refresh the display if
  * necessary
  */
-enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_data)
+enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 {
 	unsigned long timestamp;
 	uint64_t delta;
 	struct tm start;
 	uint64_t ts_nsec_start;
-	int pid, cpu_id, tid, ret, lookup;
+	int pid, cpu_id, tid, ret, lookup, current_syscall = 0;
 	const struct bt_definition *scope;
 	const char *hostname, *procname;
 	struct cputime *cpu;
@@ -270,6 +271,12 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		}
 	}
 
+	if (last_syscall && (strncmp(bt_ctf_event_name(call_data),
+				 "exit_syscall", 12)) != 0) {
+		last_syscall = NULL;
+		printf(" ...interrupted...\n");
+	}
+
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
 	if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) == 0) {
@@ -277,15 +284,40 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		cpu->current_syscall = g_new0(struct syscall, 1);
 		cpu->current_syscall->name = strdup(bt_ctf_event_name(call_data));
 		cpu->current_syscall->ts_start = timestamp;
+		cpu->current_syscall->cpu_id = cpu_id;
+		last_syscall = cpu->current_syscall;
+		current_syscall = 1;
 	} else if ((strncmp(bt_ctf_event_name(call_data), "exit_syscall", 12)) == 0) {
 		struct tm start_ts;
+
+		/* Return code of a syscall if it was the last displayed event. */
+		if (last_syscall && last_syscall->ts_start == prev_ts) {
+			if (last_syscall->cpu_id == cpu_id) {
+				int64_t syscall_ret;
+
+				delta = timestamp - last_syscall->ts_start;
+				scope = bt_ctf_get_top_level_scope(call_data,
+						BT_EVENT_FIELDS);
+				syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
+							scope, "_ret"));
+
+				printf(" = %" PRId64 " (+%" PRIu64 ".%09" PRIu64 ")\n",
+						syscall_ret, delta / NSEC_PER_SEC,
+						delta % NSEC_PER_SEC);
+				last_syscall = NULL;
+				goto end;
+			} else {
+				last_syscall = NULL;
+				printf(" ...interrupted...\n");
+			}
+		}
 
 		cpu = get_cpu(cpu_id);
 		if (cpu->current_syscall) {
 			delta = timestamp - cpu->current_syscall->ts_start;
 			start_ts = format_timestamp(cpu->current_syscall->ts_start);
 			ret = asprintf(&from_syscall, " [from %02d:%02d:%02d.%09" PRIu64
-					" (+%" PRIu64 ".%09" PRIu64 ") (cpu %d) %s]\n",
+					" (+%" PRIu64 ".%09" PRIu64 ") (cpu %d) %s]",
 					start_ts.tm_hour, start_ts.tm_min, start_ts.tm_sec,
 					cpu->current_syscall->ts_start % NSEC_PER_SEC,
 					delta / NSEC_PER_SEC, delta % NSEC_PER_SEC,
@@ -296,6 +328,7 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 			free(cpu->current_syscall->name);
 			g_free(cpu->current_syscall);
 			cpu->current_syscall = NULL;
+			last_syscall = NULL;
 		}
 	}
 
@@ -312,7 +345,8 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 			(hostname) ? " ": "", cpu_id, procname, pid, tid,
 			bt_ctf_event_name(call_data));
 	print_fields(call_data);
-	printf(")%s", (from_syscall) ? from_syscall : "\n");
+	printf(")%s%c", (from_syscall) ? from_syscall : "",
+			(current_syscall) ? '\0' : '\n');
 
 	free(from_syscall);
 
@@ -800,7 +834,7 @@ void iter_trace(struct bt_context *bt_ctx)
 			NULL, 0, handle_sched_process_free, NULL, NULL, NULL);
 	if (opt_textdump) {
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
-				print_timestamp,
+				textdump,
 				NULL, NULL, NULL);
 	} else {
 		/* at each event check if we need to refresh */

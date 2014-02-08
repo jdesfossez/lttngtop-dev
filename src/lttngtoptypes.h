@@ -156,6 +156,7 @@ struct vmas {
 struct syscall {
 	char *name;
 	unsigned long ts_start;
+	uint64_t cpu_id;
 };
 
 struct syscalls {
