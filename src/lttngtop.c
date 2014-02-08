@@ -1107,6 +1107,7 @@ int main(int argc, char **argv, char **envp)
 	int ret;
 	struct bt_context *bt_ctx = NULL;
 
+	//babeltrace_verbose = 1;
 	init_lttngtop();
 	ret = parse_options(argc, argv);
 	if (ret < 0) {

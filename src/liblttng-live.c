@@ -888,7 +888,7 @@ retry:
 		break;
 	case LTTNG_VIEWER_INDEX_RETRY:
 		printf_verbose("get_next_index: retry\n");
-		sleep(1);
+		sleep(0.1);
 		goto retry;
 	case LTTNG_VIEWER_INDEX_HUP:
 		printf_verbose("get_next_index: stream hung up\n");
