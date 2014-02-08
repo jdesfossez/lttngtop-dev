@@ -63,6 +63,7 @@ const char *opt_input_path;
 int opt_textdump;
 int opt_child;
 int opt_begin;
+int opt_all;
 
 int quit = 0;
 
@@ -97,6 +98,7 @@ enum {
 	OPT_RELAY_HOSTNAME,
 	OPT_KPROBES,
 	OPT_BEGIN,
+	OPT_ALL,
 };
 
 static struct poptOption long_options[] = {
@@ -110,6 +112,7 @@ static struct poptOption long_options[] = {
 	{ "relay-hostname", 'r', POPT_ARG_STRING, &opt_relay_hostname,
 		OPT_RELAY_HOSTNAME, NULL, NULL },
 	{ "kprobes", 'k', POPT_ARG_STRING, &opt_kprobes, OPT_KPROBES, NULL, NULL },
+	{ "all", 'a', POPT_ARG_NONE, NULL, OPT_ALL, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -263,11 +266,18 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 					goto error;
 				}
 				if (!lookup_filter_tid_list(next_tid)) {
-					goto end;
+					if (!opt_all)
+						goto end;
+				} else {
+					if (opt_all)
+						printf("%c[1m", 27);
 				}
-			} else {
+			} else if (!opt_all) {
 				goto end;
 			}
+		} else {
+			if (opt_all)
+				printf("%c[1m", 27);
 		}
 	}
 
@@ -349,6 +359,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 			(current_syscall) ? '\0' : '\n');
 
 	free(from_syscall);
+	printf("%c[0m", 27);
 
 end:
 	return BT_CB_OK;
@@ -629,6 +640,7 @@ void usage(FILE *fp)
 	fprintf(fp, "  -p, --pid                Comma-separated list of PIDs to display\n");
 	fprintf(fp, "  -f, --child              Follow threads associated with selected PIDs\n");
 	fprintf(fp, "  -n, --hostname           Comma-separated list of hostnames to display (require hostname context in trace)\n");
+	fprintf(fp, "  -a, --all                In textdump mode, display all events but write in bold the processes we are interested in (-f, -p and -n)\n");
 	fprintf(fp, "  -k, --kprobes            Comma-separated list of kprobes to insert (same format as lttng enable-event)\n");
 	fprintf(fp, "  -r, --relay-hostname     Network live streaming : hostname of the lttng-relayd (default port)\n");
 	fprintf(fp, "  -b, --begin              Network live streaming : read the trace for the beginning of the recording\n");
@@ -734,6 +746,9 @@ static int parse_options(int argc, char **argv)
 				goto end;
 			case OPT_TEXTDUMP:
 				opt_textdump = 1;
+				break;
+			case OPT_ALL:
+				opt_all = 1;
 				break;
 			case OPT_CHILD:
 				opt_child = 1;
