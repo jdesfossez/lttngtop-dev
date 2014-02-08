@@ -37,6 +37,10 @@ char *opt_tid;
 char *opt_hostname;
 char *opt_relay_hostname;
 char *opt_kprobes;
+char *opt_exec_name;
+char **opt_exec_argv;
+char **opt_exec_env;
+int opt_exec_pid;
 GHashTable *tid_filter_list;
 
 int remote_live;

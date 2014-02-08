@@ -130,6 +130,9 @@ enum bt_cb_ret handle_sched_process_free(struct bt_ctf_event *call_data,
 		fprintf(stderr, "Missing tid field\n");
 		goto error;
 	}
+	if (tid == opt_exec_pid) {
+		quit = 1;
+	}
 
 	death_proc(&lttngtop, tid, comm, timestamp);
 

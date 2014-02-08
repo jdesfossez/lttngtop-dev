@@ -38,6 +38,7 @@
 #include <fts.h>
 #include <assert.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <lttng/lttng.h>
 #ifdef LTTNGTOP_MMAP_LIVE
 #include <lttng/lttngtop-helper.h>
@@ -217,7 +218,7 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	uint64_t delta;
 	struct tm start;
 	uint64_t ts_nsec_start;
-	int pid, cpu_id, tid;
+	int pid, cpu_id, tid, ret;
 	const struct bt_definition *scope;
 	const char *hostname, *procname;
 	struct cputime *cpu;
@@ -242,7 +243,7 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 	tid = get_context_tid(call_data);
 	
 	hostname = get_context_hostname(call_data);
-	if (opt_tid || opt_hostname) {
+	if (opt_tid || opt_hostname || opt_exec_name) {
 		if (!lookup_filter_tid_list(pid)) {
 			/* To display when a process of ours in getting scheduled in */
 			if (strcmp(bt_ctf_event_name(call_data), "sched_switch") == 0) {
@@ -279,12 +280,15 @@ enum bt_cb_ret print_timestamp(struct bt_ctf_event *call_data, void *private_dat
 		if (cpu->current_syscall) {
 			delta = timestamp - cpu->current_syscall->ts_start;
 			start_ts = format_timestamp(cpu->current_syscall->ts_start);
-			asprintf(&from_syscall, " [from %02d:%02d:%02d.%09" PRIu64
+			ret = asprintf(&from_syscall, " [from %02d:%02d:%02d.%09" PRIu64
 					" (+%" PRIu64 ".%09" PRIu64 ") (cpu %d) %s]\n",
 					start_ts.tm_hour, start_ts.tm_min, start_ts.tm_sec,
 					cpu->current_syscall->ts_start % NSEC_PER_SEC,
 					delta / NSEC_PER_SEC, delta % NSEC_PER_SEC,
 					cpu_id, cpu->current_syscall->name);
+			if (ret < 0) {
+				goto error;
+			}
 			free(cpu->current_syscall->name);
 			g_free(cpu->current_syscall);
 			cpu->current_syscall = NULL;
@@ -553,6 +557,8 @@ void init_lttngtop()
 	global_perf_liszt = g_hash_table_new(g_str_hash, g_str_equal);
 	global_filter_list = g_hash_table_new(g_str_hash, g_str_equal);
 	global_host_list = g_hash_table_new(g_str_hash, g_str_equal);
+	tid_filter_list = g_hash_table_new(g_str_hash,
+			g_str_equal);
 
 	sem_init(&goodtodisplay, 0, 0);
 	sem_init(&goodtoupdate, 0, 1);
@@ -675,6 +681,7 @@ static int parse_options(int argc, char **argv)
 	int opt, ret = 0;
 	char *tmp_str;
 	int *tid;
+	int i;
 
 	remote_live = 0;
 
@@ -695,8 +702,6 @@ static int parse_options(int argc, char **argv)
 				break;
 			case OPT_PID:
 				toggle_filter = 1;
-				tid_filter_list = g_hash_table_new(g_str_hash,
-						g_str_equal);
 				tmp_str = strtok(opt_tid, ",");
 				while (tmp_str) {
 					tid = malloc(sizeof(int));
@@ -745,7 +750,18 @@ static int parse_options(int argc, char **argv)
 		}
 	}
 
-	opt_input_path = poptGetArg(pc);
+	opt_exec_name = NULL;
+	opt_exec_argv = NULL;
+	for (i = 0; i < argc; i++) {
+		if (argv[i][0] == '-' && argv[i][1] == '-') {
+			opt_exec_name = argv[i + 1];
+			opt_exec_argv = &argv[i + 1];
+			break;
+		}
+	}
+	if (!opt_exec_name) {
+		opt_input_path = poptGetArg(pc);
+	}
 
 end:
 	if (pc) {
@@ -774,6 +790,10 @@ void iter_trace(struct bt_context *bt_ctx)
 	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("sched_process_fork"),
 			NULL, 0, handle_sched_process_fork, NULL, NULL, NULL);
+	/* to clean up the process table */
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("sched_process_free"),
+			NULL, 0, handle_sched_process_free, NULL, NULL, NULL);
 	if (opt_textdump) {
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
 				print_timestamp,
@@ -787,10 +807,6 @@ void iter_trace(struct bt_context *bt_ctx)
 		bt_ctf_iter_add_callback(iter,
 				g_quark_from_static_string("sched_switch"),
 				NULL, 0, handle_sched_switch, NULL, NULL, NULL);
-		/* to clean up the process table */
-		bt_ctf_iter_add_callback(iter,
-				g_quark_from_static_string("sched_process_free"),
-				NULL, 0, handle_sched_process_free, NULL, NULL, NULL);
 		/* to get all the process from the statedumps */
 		bt_ctf_iter_add_callback(iter,
 				g_quark_from_static_string(
@@ -830,6 +846,24 @@ void iter_trace(struct bt_context *bt_ctx)
 						NULL, 0, handle_kprobes,
 						NULL, NULL, NULL);
 			}
+		}
+	}
+
+	if (opt_exec_name) {
+		pid_t pid;
+
+		pid = fork();
+		if (pid == 0) {
+			execvpe(opt_exec_name, opt_exec_argv, opt_exec_env);
+			exit(EXIT_SUCCESS);
+		} else if (pid > 0) {
+			opt_exec_pid = pid;
+			g_hash_table_insert(tid_filter_list,
+					(gpointer) &pid,
+					&pid);
+		} else {
+			perror("fork");
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -1061,7 +1095,14 @@ end:
 	return ret;
 }
 
-int main(int argc, char **argv)
+static void handle_sigchild(int signal)
+{
+	int status;
+
+	waitpid(opt_exec_pid, &status, 0);
+}
+
+int main(int argc, char **argv, char **envp)
 {
 	int ret;
 	struct bt_context *bt_ctx = NULL;
@@ -1076,7 +1117,12 @@ int main(int argc, char **argv)
 		exit(EXIT_SUCCESS);
 	}
 
-	if (!opt_input_path && !remote_live) {
+	if (opt_exec_name) {
+		opt_exec_env = envp;
+		signal(SIGCHLD, handle_sigchild);
+	}
+
+	if (!opt_input_path && !remote_live && !opt_exec_name) {
 		/* mmap live */
 #ifdef LTTNGTOP_MMAP_LIVE
 		if (opt_textdump) {
@@ -1101,18 +1147,6 @@ int main(int argc, char **argv)
 #endif /* LTTNGTOP_MMAP_LIVE */
 	} else if (!opt_input_path && remote_live) {
 		/* network live */
-#if 0
-		ret = setup_network_live(opt_relay_hostname, opt_begin);
-		if (ret < 0) {
-			goto end;
-		}
-
-		ret = open_trace(&bt_ctx);
-		if (ret < 0) {
-			goto end;
-		}
-#endif
-
 		bt_ctx = bt_context_create();
 		ret = bt_context_add_traces_recursive(bt_ctx, opt_relay_hostname,
 				"lttng-live", NULL);
