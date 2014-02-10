@@ -36,7 +36,7 @@
 
 #include "lttng-viewer-abi.h"
 #include "network-live.h"
-#include "liblttng-live.h"
+#include "lttng-live-comm.h"
 
 #include <babeltrace/babeltrace.h>
 #include <babeltrace/ctf/events.h>
