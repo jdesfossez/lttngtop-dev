@@ -64,7 +64,6 @@ int opt_textdump;
 int opt_child;
 int opt_begin;
 int opt_all;
-int opt_fd_path;
 
 int quit = 0;
 
@@ -100,7 +99,6 @@ enum {
 	OPT_KPROBES,
 	OPT_BEGIN,
 	OPT_ALL,
-	OPT_FD_PATH,
 };
 
 static struct poptOption long_options[] = {
@@ -115,7 +113,6 @@ static struct poptOption long_options[] = {
 		OPT_RELAY_HOSTNAME, NULL, NULL },
 	{ "kprobes", 'k', POPT_ARG_STRING, &opt_kprobes, OPT_KPROBES, NULL, NULL },
 	{ "all", 'a', POPT_ARG_NONE, NULL, OPT_ALL, NULL, NULL },
-	{ NULL, 'y', POPT_ARG_NONE, NULL, OPT_FD_PATH, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -773,9 +770,6 @@ static int parse_options(int argc, char **argv)
 				break;
 			case OPT_ALL:
 				opt_all = 1;
-				break;
-			case OPT_FD_PATH:
-				opt_fd_path = 1;
 				break;
 			case OPT_CHILD:
 				opt_child = 1;
