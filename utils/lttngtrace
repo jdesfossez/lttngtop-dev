@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# Wrapper to setup a live session on localhost and read it in text mode live
+
+SESSION_NAME="lttngtop-live-simple-$RANDOM"
+
+destroy()
+{
+	lttng destroy $SESSION_NAME >/dev/null
+	rm -rf $HOME/lttng-traces/$HOSTNAME/${SESSION_NAME}*
+	exit 0
+}
+
+if test "$1" = "-h" -o "$1" = "--help"; then
+	echo "usage : $0 [OPTIONS] [program [program-options]]"
+	echo "OPTIONS :"
+	echo "  -f, --child              Follow threads associated with selected PIDs"
+	echo "  -p, --pid                Comma-separated list of PIDs to display (in addition to the executed program)"
+	echo "  -a, --all                In textdump mode, display all events but write in bold the processes we are interested in (-f and -p)"
+	echo "  -k, --kprobes            kprobes to insert (same format as lttng enable-event, can be repeated)"
+	echo "  -o, --output <filename>  In textdump, output the log in <filename>"
+	exit 0
+fi
+
+pgrep -u root lttng-sessiond >/dev/null
+if test $? != 0; then
+	echo "Starting lttng-sessiond as root (trying sudo, start manually if \
+it fails)"
+	sudo lttng-sessiond -d
+	if test $? != 0; then
+		exit 1
+	fi
+fi
+
+pgrep lttng-relayd >/dev/null
+if test $? != 0; then
+	echo "Starting lttng-relayd as your current user, start manually if \
+it fails"
+	lttng-relayd -d
+	if test $? != 0; then
+		exit 1
+	fi
+fi
+
+SUDO=""
+groups|grep tracing >/dev/null
+if test $? != 0; then
+	echo "You are not a member of the tracing group, so you need root \
+access, the script will try with sudo"
+	SUDO="sudo"
+fi
+
+# check if lttng command if in the path
+# check if the user can execute the command (with sudo if not in tracing group)
+# check if lttng-modules is installed
+$SUDO lttng list -k | grep sched_switch >/dev/null
+if test $? != 0; then
+	echo "Something went wrong executing \"$SUDO lttng list -k | grep sched_switch\", \
+try to fix the problem manually and then start the script again"
+fi
+
+# if our random session name was already in use, add more randomness...
+$SUDO lttng list | grep $SESSION_NAME
+if test $? = 0; then
+	SESSION_NAME="$SESSION_NAME-$RANDOM"
+fi
+$SUDO lttng list | grep $SESSION_NAME
+if test $? = 0; then
+	echo "Cannot create a random session name, something must be wrong"
+	exit 2
+fi
+
+lttng create $SESSION_NAME --live 1000000 -U net://localhost >/dev/null
+[[ $? != 0 ]] && exit 2
+
+trap "destroy" SIGINT SIGTERM
+
+lttng enable-event -s $SESSION_NAME -u -a >/dev/null
+lttng add-context -s $SESSION_NAME -u -t vpid -t procname -t vtid >/dev/null
+
+lttng enable-event -s $SESSION_NAME -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switch,sched_process_fork >/dev/null
+[[ $? != 0 ]] && exit 2
+lttng enable-event -s $SESSION_NAME -k --syscall -a >/dev/null
+[[ $? != 0 ]] && exit 2
+lttng add-context -s $SESSION_NAME -k -t pid -t procname -t tid -t ppid >/dev/null
+[[ $? != 0 ]] && exit 2
+# if you want to add Perf counters, do something like that :
+#lttng add-context -s $SESSION_NAME -k -t perf:cache-misses -t perf:major-faults -t perf:branch-load-misses >/dev/null
+
+LTTNGTOPARGS=""
+PROG=""
+
+while [ "$1" != "" ]; do
+	if test "$1" = "-p"; then
+		shift
+		LTTNGTOPARGS="$LTTNGTOPARGS -p $1"
+		shift
+	elif test "$1" = "-k"; then
+		shift
+		lttng enable-event -k -s $SESSION_NAME "probe-$1" --probe $1 >/dev/null
+		shift
+	elif test "$1" = "-o"; then
+		shift
+		LTTNGTOPARGS="$LTTNGTOPARGS -o $1"
+		shift
+	elif test "${1:0:1}" = "-"; then
+		LTTNGTOPARGS="$LTTNGTOPARGS $1"
+		shift
+	else
+		PROG=$@
+		break
+	fi
+done
+
+if test ! -z "$PROG"; then
+	PROG="-- $PROG"
+fi
+
+lttng start $SESSION_NAME >/dev/null
+[[ $? != 0 ]] && exit 2
+
+s=$(lttngtop -r net://localhost | grep $SESSION_NAME)
+if test $? != 0; then
+	echo "Problem executing lttngtop -r net://localhost | grep $SESSION_NAME"
+	exit 1
+fi
+lttngtop -t -r $(echo $s|cut -d' ' -f1) $LTTNGTOPARGS $PROG
+
+destroy
