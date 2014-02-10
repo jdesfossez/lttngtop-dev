@@ -41,6 +41,8 @@ char *opt_exec_name;
 char **opt_exec_argv;
 char **opt_exec_env;
 int opt_exec_pid;
+char *opt_output;
+FILE *output;
 GHashTable *tid_filter_list;
 
 int remote_live;

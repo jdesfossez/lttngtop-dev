@@ -101,6 +101,8 @@ enum {
 	OPT_KPROBES,
 	OPT_BEGIN,
 	OPT_ALL,
+	OPT_OUTPUT_FILE,
+	OPT_VERBOSE,
 };
 
 static struct poptOption long_options[] = {
@@ -115,6 +117,8 @@ static struct poptOption long_options[] = {
 		OPT_RELAY_HOSTNAME, NULL, NULL },
 	{ "kprobes", 'k', POPT_ARG_STRING, &opt_kprobes, OPT_KPROBES, NULL, NULL },
 	{ "all", 'a', POPT_ARG_NONE, NULL, OPT_ALL, NULL, NULL },
+	{ "output", 'o', POPT_ARG_STRING, &opt_output, OPT_OUTPUT_FILE, NULL, NULL },
+	{ "verbose", 'v', POPT_ARG_NONE, NULL, OPT_VERBOSE, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -199,8 +203,8 @@ void print_fields(struct bt_ctf_event *event, const char *procname,
 	bt_ctf_get_field_list(event, scope, &list, &cnt);
 	for (i = 0; i < cnt; i++) {
 		if (i != 0)
-			printf(", ");
-		printf("%s = ", bt_ctf_field_name(list[i]));
+			fprintf(output, ", ");
+		fprintf(output, "%s = ", bt_ctf_field_name(list[i]));
 		l = bt_ctf_get_decl_from_def(list[i]);
 		if (strncmp(bt_ctf_field_name(list[i]), "fd", 2) == 0)
 			fd = 1;
@@ -210,17 +214,17 @@ void print_fields(struct bt_ctf_event *event, const char *procname,
 		if (type == CTF_TYPE_INTEGER) {
 			if (bt_ctf_get_int_signedness(l) == 0) {
 				fd_value = bt_ctf_get_uint64(list[i]);
-				printf("%" PRIu64, bt_ctf_get_uint64(list[i]));
+				fprintf(output, "%" PRIu64, bt_ctf_get_uint64(list[i]));
 			} else {
 				fd_value = bt_ctf_get_int64(list[i]);
-				printf("%" PRId64, bt_ctf_get_int64(list[i]));
+				fprintf(output, "%" PRId64, bt_ctf_get_int64(list[i]));
 			}
 		} else if (type == CTF_TYPE_STRING) {
-			printf("%s", bt_ctf_get_string(list[i]));
+			fprintf(output, "%s", bt_ctf_get_string(list[i]));
 		} else if (type == CTF_TYPE_ARRAY) {
 			str = bt_ctf_get_char_array(list[i]);
 			if (!bt_ctf_field_get_error() && str)
-				printf("%s", str);
+				fprintf(output, "%s", str);
 		}
 		if (fd) {
 			current_proc = find_process_tid(&lttngtop, pid, procname);
@@ -229,7 +233,7 @@ void print_fields(struct bt_ctf_event *event, const char *procname,
 			current_file = get_file(current_proc, fd_value);
 			if (!current_file || !current_file->name)
 				continue;
-			printf("<%s>", current_file->name);
+			fprintf(output, "<%s>", current_file->name);
 		}
 	}
 }
@@ -292,21 +296,21 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 						goto end;
 				} else {
 					if (opt_all)
-						printf("%c[1m", 27);
+						fprintf(output, "%c[1m", 27);
 				}
 			} else if (!opt_all) {
 				goto end;
 			}
 		} else {
 			if (opt_all)
-				printf("%c[1m", 27);
+				fprintf(output, "%c[1m", 27);
 		}
 	}
 
 	if (last_syscall && (strncmp(bt_ctf_event_name(call_data),
 				 "exit_syscall", 12)) != 0) {
 		last_syscall = NULL;
-		printf(" ...interrupted...\n");
+		fprintf(output, " ...interrupted...\n");
 	}
 
 	cpu_id = get_cpu_id(call_data);
@@ -333,14 +337,14 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 				syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 							scope, "_ret"));
 
-				printf("= %" PRId64 " (%" PRIu64 ".%09" PRIu64 "s)\n",
+				fprintf(output, "= %" PRId64 " (%" PRIu64 ".%09" PRIu64 "s)\n",
 						syscall_ret, delta / NSEC_PER_SEC,
 						delta % NSEC_PER_SEC);
 				last_syscall = NULL;
 				goto end;
 			} else {
 				last_syscall = NULL;
-				printf(" ...interrupted...\n");
+				fprintf(output, " ...interrupted...\n");
 			}
 		}
 
@@ -369,7 +373,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 	delta = timestamp - prev_ts;
 	prev_ts = timestamp;
 
-	printf("%02d:%02d:%02d.%09" PRIu64 " (+%" PRIu64 ".%09" PRIu64 ") %s%s"
+	fprintf(output, "%02d:%02d:%02d.%09" PRIu64 " (+%" PRIu64 ".%09" PRIu64 ") %s%s"
 			"(cpu %d) [%s (%d/%d)] %s (",
 			start.tm_hour, start.tm_min, start.tm_sec,
 			ts_nsec_start, delta / NSEC_PER_SEC,
@@ -377,12 +381,12 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 			(hostname) ? " ": "", cpu_id, procname, pid, tid,
 			bt_ctf_event_name(call_data));
 	print_fields(call_data, procname, pid);
-	printf(")%s%c", (from_syscall) ? from_syscall : "",
+	fprintf(output, ")%s%c", (from_syscall) ? from_syscall : "",
 			(!current_syscall) ? '\n' : ' ');
 
 	free(from_syscall);
 	if (opt_all && (opt_tid || opt_hostname || opt_exec_name))
-		printf("%c[0m", 27);
+		fprintf(output, "%c[0m", 27);
 
 end:
 	return BT_CB_OK;
@@ -667,6 +671,7 @@ void usage(FILE *fp)
 	fprintf(fp, "  -k, --kprobes            Comma-separated list of kprobes to insert (same format as lttng enable-event)\n");
 	fprintf(fp, "  -r, --relay-hostname     Network live streaming : hostname of the lttng-relayd (default port)\n");
 	fprintf(fp, "  -b, --begin              Network live streaming : read the trace for the beginning of the recording\n");
+	fprintf(fp, "  -o, --output <filename>  In textdump, output the log in <filename>\n");
 }
 
 /*
@@ -820,6 +825,11 @@ static int parse_options(int argc, char **argv)
 					tmp_str = strtok(NULL, ",");
 				}
 				break;
+			case OPT_OUTPUT_FILE:
+				break;
+			case OPT_VERBOSE:
+				babeltrace_verbose = 1;
+				break;
 			default:
 				ret = -EINVAL;
 				goto end;
@@ -837,6 +847,15 @@ static int parse_options(int argc, char **argv)
 	}
 	if (!opt_exec_name) {
 		opt_input_path = poptGetArg(pc);
+	}
+	if (!opt_output) {
+		opt_output = strdup("/dev/stdout");
+	}
+	output = fopen(opt_output, "w");
+	if (!output) {
+		perror("Error opening output file");
+		ret = -1;
+		goto end;
 	}
 
 end:
@@ -1185,7 +1204,6 @@ int main(int argc, char **argv, char **envp)
 	int ret;
 	struct bt_context *bt_ctx = NULL;
 
-	//babeltrace_verbose = 1;
 	init_lttngtop();
 	ret = parse_options(argc, argv);
 	if (ret < 0) {
