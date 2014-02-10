@@ -331,7 +331,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 				syscall_ret = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 							scope, "_ret"));
 
-				printf("= %" PRId64 " (+%" PRIu64 ".%09" PRIu64 ")\n",
+				printf("= %" PRId64 " (%" PRIu64 ".%09" PRIu64 "s)\n",
 						syscall_ret, delta / NSEC_PER_SEC,
 						delta % NSEC_PER_SEC);
 				last_syscall = NULL;
