@@ -45,8 +45,12 @@ uint64_t get_context_tid(const struct bt_ctf_event *event)
 	tid = bt_ctf_get_int64(bt_ctf_get_field(event,
 				scope, "_tid"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing tid context info\n");
-		return -1ULL;
+		tid = bt_ctf_get_int64(bt_ctf_get_field(event,
+					scope, "_vtid"));
+		if (bt_ctf_field_get_error()) {
+			fprintf(stderr, "Missing tid context info\n");
+			return -1ULL;
+		}
 	}
 
 	return tid;
@@ -61,8 +65,13 @@ uint64_t get_context_pid(const struct bt_ctf_event *event)
 	pid = bt_ctf_get_int64(bt_ctf_get_field(event,
 				scope, "_pid"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing pid context info\n");
-		return -1ULL;
+		/* Try UST pid */
+		pid = bt_ctf_get_int64(bt_ctf_get_field(event,
+					scope, "_vpid"));
+		if (bt_ctf_field_get_error()) {
+			fprintf(stderr, "Missing pid context info\n");
+			return -1ULL;
+		}
 	}
 
 	return pid;
@@ -77,7 +86,6 @@ uint64_t get_context_ppid(const struct bt_ctf_event *event)
 	ppid = bt_ctf_get_int64(bt_ctf_get_field(event,
 				scope, "_ppid"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing ppid context info\n");
 		return -1ULL;
 	}
 
@@ -599,8 +607,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	ppid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_ppid"));
 	if (bt_ctf_field_get_error()) {
-		fprintf(stderr, "Missing ppid context info\n");
-		goto error;
+		goto end;
 	}
 	tid = bt_ctf_get_int64(bt_ctf_get_field(call_data,
 				scope, "_tid"));
@@ -647,6 +654,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 		proc->pid = pid;
 	}
 
+end:
 	return BT_CB_OK;
 
 error:

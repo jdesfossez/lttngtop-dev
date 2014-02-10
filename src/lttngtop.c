@@ -66,6 +66,8 @@ int opt_begin;
 int opt_all;
 
 int quit = 0;
+/* We need at least one valid trace to start processing. */
+int valid_trace = 0;
 
 struct lttngtop *copy;
 pthread_t display_thread;
@@ -569,7 +571,7 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 	}
 	ppid = get_context_ppid(call_data);
 	if (ppid == -1ULL) {
-		goto error;
+		goto end;
 	}
 	vpid = get_context_vpid(call_data);
 	if (pid == -1ULL) {
@@ -1163,6 +1165,9 @@ int check_requirements(struct bt_context *ctx)
 		ret = -1;
 		fprintf(stderr, "[error] missing procname context information\n");
 	}
+	if (ret == 0) {
+		valid_trace = 1;
+	}
 
 end:
 	return ret;
@@ -1239,10 +1244,10 @@ int main(int argc, char **argv, char **envp)
 		}
 
 		ret = check_requirements(bt_ctx);
-		if (ret < 0) {
+		if (ret < 0 && !valid_trace) {
 			fprintf(stderr, "[error] some mandatory contexts "
 					"were missing, exiting.\n");
-			goto end;
+			//goto end;
 		}
 
 		if (!opt_textdump) {

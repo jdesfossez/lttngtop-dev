@@ -22,6 +22,7 @@ int check_requirements(struct bt_context *ctx);
 extern int opt_textdump;
 extern int opt_child;
 extern int opt_begin;
+extern int valid_trace;
 
 extern pthread_t display_thread;
 extern pthread_t timer_thread;

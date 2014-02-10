@@ -424,8 +424,8 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 		ret = 0;
 		goto end;
 	}
-	printf_verbose("Waiting for %" PRIu64 " streams:\n",
-		ctx->session->stream_count);
+	printf_verbose("Waiting for %u streams:\n",
+		be32toh(rp.streams_count));
 	ctx->session->streams = g_new0(struct lttng_live_viewer_stream,
 			ctx->session->stream_count);
 	for (i = 0; i < be32toh(rp.streams_count); i++) {
@@ -610,11 +610,14 @@ int get_data_packet(struct lttng_live_ctx *ctx,
 			goto end;
 		}
 		if (rp.flags & LTTNG_VIEWER_FLAG_NEW_STREAM) {
+			printf_verbose("get_data_packet: new streams needed\n");
 			ret = ask_new_streams(ctx);
 			if (ret < 0)
 				goto error;
 			g_hash_table_foreach(ctx->session->ctf_traces, add_traces,
 					ctx->bt_ctx);
+			ret = 0;
+			goto end;
 		}
 		fprintf(stderr, "[error] get_data_packet: error\n");
 		ret = -1;
@@ -1399,7 +1402,7 @@ void lttng_live_read(struct lttng_live_ctx *ctx)
 		bt_ctf_iter_destroy(iter);
 #endif
 		ret = check_requirements(ctx->bt_ctx);
-		if (ret < 0) {
+		if (ret < 0 && !valid_trace) {
 			fprintf(stderr, "[error] some mandatory contexts "
 					"were missing, exiting.\n");
 			goto end;
