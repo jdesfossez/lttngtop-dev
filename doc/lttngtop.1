@@ -48,7 +48,7 @@ launched as root.
 
 .nf
 lttng create lttngtop
-lttng enable-event -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switch -s lttngtop
+lttng enable-event -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switchsched_process_fork -s lttngtop
 lttng enable-event -k --syscall -a -s lttngtop
 lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses -t perf:major-faults -t perf:branch-load-misses -s lttngtop
 lttng start lttngtop
@@ -60,9 +60,10 @@ lttng destroy lttngtop
 .SH "LIVE STREAMING"
 
 .PP
-In addition to offline traces, LTTngTop can read traces while they are being recorded.
-The official supported way of doing live streaming is using lttng-tools >=2.4 and
-following the documentation in live-reading-howto.txt.
+In addition to offline traces, LTTngTop can read traces while they are being
+recorded. The official supported way of doing live streaming is using
+lttng-tools >=2.4 and following the documentation in live-reading-howto.txt of
+lttng-tools and README-LIVE of lttngtop.
 An other experimental way of doing live tracing is with mmap, but this requires some
 more work because is not officially supported and requires out-of-tree patches to
 lttng-tools and babeltrace.

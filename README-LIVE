@@ -1,4 +1,28 @@
-In order to use the (beta) live tracing features of LttngTop, you need these
+As of LTTng v2.4, we can now process traces while they are being recorded
+(called live-tracing). LTTngtop can read live traces either in the ncurses GUI
+or in text mode.
+
+In order to use this feature, start by creating a live session with at least
+the events and contexts required for LTTngtop (see the manpage for that).  A
+simple script to do the basic setup is available in
+utils/create-live-session.sh
+
+Once the session is created, you can list the sessions established on the
+relay with :
+$ lttngtop -r net://relaydhostname
+
+And attach to a session with 
+$ lttngtop -r net://relaydhostname/host/<hostname/<session-name>
+
+A few seconds later, you should begin to see your live trace being displayed in
+lttngtop gui.
+To use the textdump feature, use the -t (and see --help for more options). You
+can also use the new lttngtrace provided by lttngtop which does all the setup
+for a live trace in textdump on localhost.
+
+
+EXPERIMENTAL :
+In order to use the (beta) MMAP live tracing features of LttngTop, you need these
 branches :
 
 git clone -b lttngtop-live git://git.dorsal.polymtl.ca/~jdesfossez/lttng-tools
