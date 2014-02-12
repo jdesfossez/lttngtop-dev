@@ -29,7 +29,6 @@ lttngtop_SOURCES = \
 
 lttngtop_LDFLAGS = -Wl,--no-as-needed
 
-#lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttngtop-helper -llttng-ctl -lurcu -llttngtopmmappacketseek -llttng-ust-ctl -lcurses -lpanel
-lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttng-ctl -lurcu -llttng-ust-ctl -lcurses -lpanel \
+lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttng-ctl \
+		 -lurcu -llttng-ust-ctl \
 		 $(top_builddir)/src/libbabeltrace-lttngtop-live.la
-

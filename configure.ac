@@ -40,14 +40,12 @@ AC_CHECK_LIB([popt], [poptGetContext], [],
 )
 
 # Check for libncurses
-AC_CHECK_LIB([ncurses], [initscr], [],
-	[AC_MSG_ERROR([Cannot find the the ncurses library.])]
+AC_CHECK_LIB([ncurses], [initscr], [], [HAVE_NCURSES=0]
 )
 
 # Check for libpanel, also part of libncurses
 # (but this check will add the required -lpanel flag)
-AC_CHECK_LIB([panel], [update_panels], [],
-	[AC_MSG_ERROR([Cannot find the the ncurses library.])]
+AC_CHECK_LIB([panel], [update_panels], [], [HAVE_PANELS=0]
 )
 
 # Check for libbabeltrace
@@ -81,3 +79,15 @@ AC_CONFIG_FILES([
 	utils/Makefile
 ])
 AC_OUTPUT
+
+AS_IF([test "x$HAVE_NCURSES" = "x0"],[
+       AS_ECHO()
+       AS_ECHO_N("Ncurses GUI won't be compiled install ncurses if you want it.")
+       ], [
+	   CURSES_LIBS="-lcurses -lpanel"
+	   AC_SUBST(CURSES_LIBS)
+	   AS_ECHO()
+	   AS_ECHO_N("Ncurses GUI will be compiled.")
+	   ])
+AS_ECHO()
+

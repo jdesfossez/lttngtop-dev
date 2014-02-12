@@ -49,9 +49,12 @@
 #include "lttngtoptypes.h"
 #include "cputop.h"
 #include "iostreamtop.h"
-#include "cursesdisplay.h"
 #include "common.h"
 #include "network-live.h"
+
+#ifdef HAVE_LIBNCURSES
+#include "cursesdisplay.h"
+#endif
 
 #define NET_URL_PREFIX	"net://"
 #define NET4_URL_PREFIX	"net4://"
@@ -153,6 +156,7 @@ void *refresh_thread(void *p)
 	}
 }
 
+#ifdef HAVE_LIBNCURSES
 void *ncurses_display(void *p)
 {
 	unsigned int current_display_index = 0;
@@ -184,6 +188,7 @@ void *ncurses_display(void *p)
 		sem_post(&pause_sem);
 	}
 }
+#endif /* HAVE_LIBNCURSES */
 
 void print_fields(struct bt_ctf_event *event, const char *procname,
 		int pid)
@@ -1269,10 +1274,16 @@ int main(int argc, char **argv, char **envp)
 		}
 
 		if (!opt_textdump) {
+#ifdef HAVE_LIBNCURSES
 			pthread_create(&display_thread, NULL, ncurses_display,
 					(void *) NULL);
 			pthread_create(&timer_thread, NULL, refresh_thread,
 					(void *) NULL);
+#else
+			printf("Ncurses support not compiled, please install "
+					"the missing dependencies and recompile\n");
+			goto end;
+#endif
 		}
 
 		iter_trace(bt_ctx);

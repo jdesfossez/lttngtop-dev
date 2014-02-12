@@ -15,6 +15,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <config.h>
+
+#ifdef HAVE_LIBNCURSES
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -1771,3 +1775,5 @@ void init_ncurses()
 
 	pthread_create(&keyboard_thread, NULL, handle_keyboard, (void *)NULL);
 }
+
+#endif /* HAVE_LIBNCURSES */

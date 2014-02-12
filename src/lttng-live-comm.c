@@ -1452,10 +1452,16 @@ void lttng_live_read(struct lttng_live_ctx *ctx)
 		}
 
 		if (!opt_textdump) {
+#ifdef HAVE_LIBNCURSES
 			pthread_create(&display_thread, NULL, ncurses_display,
 					(void *) NULL);
 			pthread_create(&timer_thread, NULL, refresh_thread,
 					(void *) NULL);
+#else
+			printf("Ncurses support not compiled, please install "
+					"the missing dependencies and recompile\n");
+			goto end_free;
+#endif
 		}
 		iter_trace(ctx->bt_ctx);
 		g_hash_table_foreach_remove(ctx->session->ctf_traces,
