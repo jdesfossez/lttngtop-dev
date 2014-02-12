@@ -48,7 +48,8 @@ void add_file(struct processtop *proc, struct files *file, int fd)
 		if (tmp_file == NULL)
 			g_ptr_array_index(proc->process_files_table, fd) = file;
 		else {
-			if (strcmp(tmp_file->name, file->name) != 0) {
+			if (!tmp_file->name ||
+					strcmp(tmp_file->name, file->name) != 0) {
 				size = proc->process_files_table->len;
 				g_ptr_array_set_size(proc->process_files_table,
 								size+1);
@@ -139,6 +140,10 @@ void close_file(struct processtop *proc, int fd)
 	if (file != NULL) {
 		file->flag = __NR_close;
 		lttngtop.nbfiles--;
+		if (file->name) {
+			free(file->name);
+			file->name = NULL;
+		}
 	}
 	lttngtop.nbclosedfiles++;
 }
