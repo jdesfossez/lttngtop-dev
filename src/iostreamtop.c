@@ -400,7 +400,6 @@ error:
 	return BT_CB_ERROR_STOP;
 }
 
-
 enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		void *private_data)
 {
@@ -447,6 +446,43 @@ error:
 	return BT_CB_ERROR_STOP;
 }
 
+enum bt_cb_ret handle_sys_socket(struct bt_ctf_event *call_data,
+		void *private_data)
+{
+
+	struct processtop *tmp;
+	unsigned long timestamp;
+	uint64_t cpu_id;
+	int64_t tid;
+	char *procname, *hostname;
+	char *file;
+
+	timestamp = bt_ctf_get_timestamp(call_data);
+	if (timestamp == -1ULL)
+		goto error;
+
+	tid = get_context_tid(call_data);
+	cpu_id = get_cpu_id(call_data);
+
+	procname = get_context_comm(call_data);
+	hostname = get_context_hostname(call_data);
+
+	file = strdup("socket");
+
+	tmp = get_proc(&lttngtop, tid, procname, timestamp, hostname);
+	if (!tmp)
+		goto end;
+
+	tmp->syscall_info = create_syscall_info(__NR_open, cpu_id, tid, -1);
+
+	tmp->files_history = create_file(tmp->files_history, file);
+
+end:
+	return BT_CB_OK;
+
+error:
+	return BT_CB_ERROR_STOP;
+}
 
 enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data)

@@ -36,6 +36,8 @@ enum bt_cb_ret handle_sys_read(struct bt_ctf_event *call_data,
 		void *private_data);
 enum bt_cb_ret handle_sys_open(struct bt_ctf_event *call_data,
 		void *private_data);
+enum bt_cb_ret handle_sys_socket(struct bt_ctf_event *call_data,
+		void *private_data);
 enum bt_cb_ret handle_sys_close(struct bt_ctf_event *call_data,
 		void *private_data);
 enum bt_cb_ret handle_statedump_file_descriptor(struct bt_ctf_event *call_data,

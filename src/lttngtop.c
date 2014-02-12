@@ -909,6 +909,9 @@ void iter_trace(struct bt_context *bt_ctx)
 			g_quark_from_static_string("sys_open"),
 			NULL, 0, handle_sys_open, NULL, NULL, NULL);
 	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("sys_socket"),
+			NULL, 0, handle_sys_socket, NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("sys_close"),
 			NULL, 0, handle_sys_close, NULL, NULL, NULL);
 	bt_ctf_iter_add_callback(iter,
