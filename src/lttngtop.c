@@ -106,6 +106,7 @@ enum {
 	OPT_ALL,
 	OPT_OUTPUT_FILE,
 	OPT_VERBOSE,
+	OPT_GUI_TEST,
 };
 
 static struct poptOption long_options[] = {
@@ -122,6 +123,7 @@ static struct poptOption long_options[] = {
 	{ "all", 'a', POPT_ARG_NONE, NULL, OPT_ALL, NULL, NULL },
 	{ "output", 'o', POPT_ARG_STRING, &opt_output, OPT_OUTPUT_FILE, NULL, NULL },
 	{ "verbose", 'v', POPT_ARG_NONE, NULL, OPT_VERBOSE, NULL, NULL },
+	{ "gui-test", 'g', POPT_ARG_NONE, NULL, OPT_GUI_TEST, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -689,6 +691,7 @@ void usage(FILE *fp)
 	fprintf(fp, "  -r, --relay-hostname     Network live streaming : hostname of the lttng-relayd (default port)\n");
 	fprintf(fp, "  -b, --begin              Network live streaming : read the trace for the beginning of the recording\n");
 	fprintf(fp, "  -o, --output <filename>  In textdump, output the log in <filename>\n");
+	fprintf(fp, "  -g, --gui-test           Test if the ncurses support is compiled in (return 0 if it is)\n");
 }
 
 /*
@@ -788,6 +791,13 @@ static int parse_options(int argc, char **argv)
 			case OPT_HELP:
 				usage(stdout);
 				ret = 1;    /* exit cleanly */
+				goto end;
+			case OPT_GUI_TEST:
+#ifdef HAVE_LIBNCURSES
+				exit(EXIT_SUCCESS);
+#else
+				exit(EXIT_FAILURE);
+#endif
 				goto end;
 			case OPT_TEXTDUMP:
 				opt_textdump = 1;
