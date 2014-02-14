@@ -14,11 +14,12 @@ destroy()
 if test "$1" = "-h" -o "$1" = "--help"; then
 	echo "usage : $0 [OPTIONS] [program [program-options]]"
 	echo "OPTIONS :"
-	echo "  -f, --child              Follow threads associated with selected PIDs"
-	echo "  -p, --pid                Comma-separated list of PIDs to display (in addition to the executed program)"
-	echo "  -a, --all                In textdump mode, display all events but write in bold the processes we are interested in (-f and -p)"
-	echo "  -k, --kprobes            kprobes to insert (same format as lttng enable-event, can be repeated)"
-	echo "  -o, --output <filename>  In textdump, output the log in <filename>"
+	echo "  -f             Follow threads associated with selected PIDs"
+	echo "  -p             Comma-separated list of PIDs to display (in addition to the eventual executed program)"
+	echo "  -n             Comma-separated list of procnames to display (in addition to the eventual executed program)"
+	echo "  -a             In textdump mode, display all events but write in bold the processes we are interested in (-f and -p)"
+	echo "  -k             kprobes to insert (same format as lttng enable-event, can be repeated)"
+	echo "  -o <filename>  In textdump, output the log in <filename>"
 	exit 0
 fi
 
@@ -102,6 +103,10 @@ while [ "$1" != "" ]; do
 	elif test "$1" = "-o"; then
 		shift
 		LTTNGTOPARGS="$LTTNGTOPARGS -o $1"
+		shift
+	elif test "$1" = "-n"; then
+		shift
+		LTTNGTOPARGS="$LTTNGTOPARGS -n $1"
 		shift
 	elif test "${1:0:1}" = "-"; then
 		LTTNGTOPARGS="$LTTNGTOPARGS $1"

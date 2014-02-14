@@ -758,3 +758,26 @@ void update_hostname_filter(struct host *host)
 		}
 	}
 }
+
+char *lookup_procname(const char *procname)
+{
+	if (!procname || !global_procname_list)
+		return NULL;
+
+	return g_hash_table_lookup(global_procname_list, (gpointer) procname);
+}
+
+char *add_procname_list(char *procname, int filter)
+{
+	char *proc;
+
+	proc = lookup_procname(procname);
+	if (proc)
+		return proc;
+
+	proc = strdup(procname);
+	g_hash_table_insert(global_procname_list,
+			(gpointer) procname, (gpointer) procname);
+
+	return proc;
+}

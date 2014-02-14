@@ -32,9 +32,10 @@ GPtrArray *copies; /* struct lttngtop */
 GHashTable *global_perf_liszt;
 GHashTable *global_filter_list;
 GHashTable *global_host_list;
+GHashTable *global_procname_list;
 
 char *opt_tid;
-char *opt_hostname;
+char *opt_procname;
 char *opt_relay_hostname;
 char *opt_kprobes;
 char *opt_exec_name;
@@ -102,5 +103,7 @@ struct host *lookup_hostname_list(const char *hostname);
 int is_hostname_filtered(const char *hostname);
 struct host *add_hostname_list(char *hostname, int filter);
 void update_hostname_filter(struct host *host);
+char *lookup_procname(const char *procname);
+char *add_procname_list(char *procname, int filter);
 
 #endif /* _COMMON_H */

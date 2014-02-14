@@ -99,7 +99,7 @@ enum {
 	OPT_TEXTDUMP,
 	OPT_PID,
 	OPT_CHILD,
-	OPT_HOSTNAME,
+	OPT_PROCNAME,
 	OPT_RELAY_HOSTNAME,
 	OPT_KPROBES,
 	OPT_BEGIN,
@@ -115,7 +115,7 @@ static struct poptOption long_options[] = {
 	{ "child", 'f', POPT_ARG_NONE, NULL, OPT_CHILD, NULL, NULL },
 	{ "begin", 'b', POPT_ARG_NONE, NULL, OPT_BEGIN, NULL, NULL },
 	{ "pid", 'p', POPT_ARG_STRING, &opt_tid, OPT_PID, NULL, NULL },
-	{ "hostname", 'n', POPT_ARG_STRING, &opt_hostname, OPT_HOSTNAME, NULL, NULL },
+	{ "procname", 'n', POPT_ARG_STRING, &opt_procname, OPT_PROCNAME, NULL, NULL },
 	{ "relay-hostname", 'r', POPT_ARG_STRING, &opt_relay_hostname,
 		OPT_RELAY_HOSTNAME, NULL, NULL },
 	{ "kprobes", 'k', POPT_ARG_STRING, &opt_kprobes, OPT_KPROBES, NULL, NULL },
@@ -282,7 +282,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 		lookup = pid;
 	else
 		lookup = tid;
-	if (opt_tid || opt_hostname || opt_exec_name) {
+	if (opt_tid || opt_procname || opt_exec_name) {
 		if (!lookup_filter_tid_list(lookup)) {
 			/* To display when a process of ours in getting scheduled in */
 			if (strcmp(bt_ctf_event_name(call_data), "sched_switch") == 0) {
@@ -390,7 +390,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 			(!current_syscall) ? '\n' : ' ');
 
 	free(from_syscall);
-	if (opt_all && (opt_tid || opt_hostname || opt_exec_name))
+	if (opt_all && (opt_tid || opt_procname || opt_exec_name))
 		fprintf(output, "%c[0m", 27);
 
 end:
@@ -609,6 +609,17 @@ enum bt_cb_ret fix_process_table(struct bt_ctf_event *call_data,
 		goto end;
 	update_proc(child, pid, tid, ppid, vpid, vtid, vppid, comm, hostname);
 
+	if (opt_procname && lookup_procname(comm) &&
+			!lookup_filter_tid_list(tid)) {
+		int *tmp_tid;
+
+		tmp_tid = malloc(sizeof(int));
+		*tmp_tid = tid;
+		printf("ADDING %s %d\n", comm, tid);
+		g_hash_table_insert(global_filter_list,
+				(gpointer) tmp_tid, tmp_tid);
+	}
+
 	if (pid != tid) {
 		/* find or create the parent */
 		parent = find_process_tid(&lttngtop, pid, comm);
@@ -638,6 +649,7 @@ void init_lttngtop()
 	global_perf_liszt = g_hash_table_new(g_str_hash, g_str_equal);
 	global_filter_list = g_hash_table_new(g_str_hash, g_str_equal);
 	global_host_list = g_hash_table_new(g_str_hash, g_str_equal);
+	global_procname_list = g_hash_table_new(g_str_hash, g_str_equal);
 	tid_filter_list = g_hash_table_new(g_str_hash,
 			g_str_equal);
 
@@ -671,7 +683,7 @@ void usage(FILE *fp)
 	fprintf(fp, "  -t, --textdump           Display live events in text-only\n");
 	fprintf(fp, "  -p, --pid                Comma-separated list of PIDs to display\n");
 	fprintf(fp, "  -f, --child              Follow threads associated with selected PIDs\n");
-	fprintf(fp, "  -n, --hostname           Comma-separated list of hostnames to display (require hostname context in trace)\n");
+	fprintf(fp, "  -n, --procname           Comma-separated list of procnames to display (require procname context in trace)\n");
 	fprintf(fp, "  -a, --all                In textdump mode, display all events but write in bold the processes we are interested in (-f, -p and -n)\n");
 	fprintf(fp, "  -k, --kprobes            Comma-separated list of kprobes to insert (same format as lttng enable-event)\n");
 	fprintf(fp, "  -r, --relay-hostname     Network live streaming : hostname of the lttng-relayd (default port)\n");
@@ -801,11 +813,11 @@ static int parse_options(int argc, char **argv)
 				/* start reading the live trace from the beginning */
 				opt_begin = 1;
 				break;
-			case OPT_HOSTNAME:
+			case OPT_PROCNAME:
 				toggle_filter = 1;
-				tmp_str = strtok(opt_hostname, ",");
+				tmp_str = strtok(opt_procname, ",");
 				while (tmp_str) {
-					add_hostname_list(tmp_str, 1);
+					add_procname_list(tmp_str, 1);
 					tmp_str = strtok(NULL, ",");
 				}
 				break;
