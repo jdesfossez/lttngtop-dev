@@ -18,6 +18,7 @@ noinst_HEADERS = \
 	lttng-live-comm.h \
 	lttng-viewer-abi.h \
 	lttngtop.h \
+	lttng-session.h \
 	$(top_builddir)/lib/babeltrace/format.h \
 	$(top_builddir)/lib/babeltrace/compat/memstream.h \
 	$(top_builddir)/lib/babeltrace/compat/string.h \
@@ -61,7 +62,8 @@ lttngtop_SOURCES = \
 	cursesdisplay.c \
 	cputop.c \
 	iostreamtop.c \
-	mmap-live.c
+	mmap-live.c \
+	lttng-session.c
 
 lttngtop_LDFLAGS = -Wl,--no-as-needed
 

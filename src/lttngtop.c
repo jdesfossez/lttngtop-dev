@@ -51,6 +51,7 @@
 #include "iostreamtop.h"
 #include "common.h"
 #include "network-live.h"
+#include "lttng-session.h"
 
 #ifdef HAVE_LIBNCURSES
 #include "cursesdisplay.h"
@@ -107,6 +108,7 @@ enum {
 	OPT_OUTPUT_FILE,
 	OPT_VERBOSE,
 	OPT_GUI_TEST,
+	OPT_CREATE_LOCAL_SESSION,
 };
 
 static struct poptOption long_options[] = {
@@ -124,6 +126,7 @@ static struct poptOption long_options[] = {
 	{ "output", 'o', POPT_ARG_STRING, &opt_output, OPT_OUTPUT_FILE, NULL, NULL },
 	{ "verbose", 'v', POPT_ARG_NONE, NULL, OPT_VERBOSE, NULL, NULL },
 	{ "gui-test", 'g', POPT_ARG_NONE, NULL, OPT_GUI_TEST, NULL, NULL },
+	{ "create-local-session", 0, POPT_ARG_NONE, NULL, OPT_CREATE_LOCAL_SESSION, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -799,6 +802,9 @@ static int parse_options(int argc, char **argv)
 				exit(EXIT_FAILURE);
 #endif
 				goto end;
+			case OPT_CREATE_LOCAL_SESSION:
+				ret = create_local_session();
+				exit(ret);
 			case OPT_TEXTDUMP:
 				opt_textdump = 1;
 				break;
