@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <string.h>
 
 #define event_list "lttng_statedump_start,lttng_statedump_end," \
 	"lttng_statedump_process_state,lttng_statedump_file_descriptor," \
@@ -314,7 +315,7 @@ end:
 }
 
 static
-int start(char *name, int sudo, int local)
+int start(char *name, int sudo, int local, int print)
 {
 	int ret;
 	char cmd[1024];
@@ -333,11 +334,14 @@ int start(char *name, int sudo, int local)
 		goto end;
 	}
 
+	if (!print)
+		goto end;
+
 	if (local) {
 		ret = sprintf(cmd, "%s lttng list|grep %s|cut -d'(' -f2|cut -d ')' -f1",
 				(sudo) ? "sudo" : " ", name);
 	} else {
-		ret = sprintf(cmd, "lttngtop -r net://localhost|grep %s|cut -d' ' -f1",
+		ret = sprintf(cmd, "babeltrace -i lttng-live net://localhost|grep %s|cut -d' ' -f1",
 				name);
 	}
 	if (ret < 0) {
@@ -355,6 +359,40 @@ int start(char *name, int sudo, int local)
 
 end:
 	return ret;
+}
+
+static
+char *live_path(char *name)
+{
+	FILE *fp;
+	int ret;
+	char path[1035];
+	char cmd[1024];
+	char *out = NULL;
+
+	ret = sprintf(cmd, "lttngtop -r net://localhost|grep %s|cut -d' ' -f1",
+			name);
+	if (ret < 0) {
+		fprintf(stderr, "allocating cmd\n");
+		goto end;
+	}
+
+	fp = popen(cmd, "r");
+	if (fp == NULL) {
+		printf("Failed to run command\n" );
+		goto end;
+	}
+
+	/* Read the output a line at a time - output it. */
+	out = fgets(path, sizeof(path)-1, fp);
+	if (out)
+		out = strdup(path);
+
+	/* close */
+	pclose(fp);
+
+end:
+	return out;
 }
 
 static
@@ -427,7 +465,7 @@ int create_local_session()
 		goto end_free;
 	}
 
-	ret = start(name, sudo, 1);
+	ret = start(name, sudo, 1, 1);
 	if (ret < 0) {
 		goto end_free;
 	}
@@ -438,12 +476,12 @@ end:
 	return ret;
 }
 
-int destroy_session(char *name)
+int destroy_live_local_session(char *name)
 {
 	return destroy(name);
 }
 
-int create_live_local_session()
+int create_live_local_session(char **session_path, char **session_name, int print)
 {
 	int ret;
 	char *name;
@@ -477,9 +515,16 @@ int create_live_local_session()
 		goto end_free;
 	}
 
-	ret = start(name, sudo, 0);
+	ret = start(name, sudo, 0, print);
 	if (ret < 0) {
 		goto end_free;
+	}
+
+	if (session_path)
+		*session_path = live_path(name);
+	if (session_name) {
+		*session_name = name;
+		goto end;
 	}
 
 end_free:
@@ -487,8 +532,3 @@ end_free:
 end:
 	return ret;
 }
-
-/*
-int create_live_local_session();
-int destroy_live_local_session();
-*/

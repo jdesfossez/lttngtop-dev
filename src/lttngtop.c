@@ -810,7 +810,7 @@ static int parse_options(int argc, char **argv)
 				ret = create_local_session();
 				exit(ret);
 			case OPT_CREATE_LIVE_SESSION:
-				ret = create_live_local_session();
+				ret = create_live_local_session(NULL, NULL, 1);
 				exit(ret);
 			case OPT_TEXTDUMP:
 				opt_textdump = 1;
@@ -1246,6 +1246,7 @@ int main(int argc, char **argv, char **envp)
 {
 	int ret;
 	struct bt_context *bt_ctx = NULL;
+	char *live_session_name = NULL;
 
 	init_lttngtop();
 	ret = parse_options(argc, argv);
@@ -1264,28 +1265,13 @@ int main(int argc, char **argv, char **envp)
 
 	if (!opt_input_path && !remote_live && !opt_exec_name) {
 		/* mmap live */
-#ifdef LTTNGTOP_MMAP_LIVE
-		if (opt_textdump) {
-			signal(SIGTERM, handle_textdump_sigterm);
-			signal(SIGINT, handle_textdump_sigterm);
-		}
-		mmap_live_loop(bt_ctx);
-		pthread_join(timer_thread, NULL);
-		quit = 1;
-		pthread_join(display_thread, NULL);
-
-		lttng_stop_tracing("test");
-		lttng_destroy_session("test");
-
-		goto end;
-#else
-		fprintf(stderr, "[ERROR] Mmap live support not compiled, specify a "
-				"trace directory or -r <relayd hostname/IP>\n");
-		usage(stdout);
-		ret = -1;
-		goto end;
-#endif /* LTTNGTOP_MMAP_LIVE */
-	} else if (!opt_input_path && remote_live) {
+		ret = create_live_local_session(&opt_relay_hostname,
+				&live_session_name, 0);
+		if (ret < 0)
+			goto end;
+		remote_live = 1;
+	}
+	if (!opt_input_path && remote_live) {
 		/* network live */
 		bt_ctx = bt_context_create();
 		ret = bt_context_add_traces_recursive(bt_ctx, opt_relay_hostname,
@@ -1295,8 +1281,6 @@ int main(int argc, char **argv, char **envp)
 			goto end;
 		}
 	} else {
-		//init_lttngtop();
-
 		bt_ctx = bt_context_create();
 		ret = bt_context_add_traces_recursive(bt_ctx, opt_input_path, "ctf", NULL);
 		if (ret < 0) {
@@ -1337,6 +1321,13 @@ int main(int argc, char **argv, char **envp)
 end:
 	if (bt_ctx)
 		bt_context_put(bt_ctx);
+
+	if (live_session_name) {
+		ret = destroy_live_local_session(live_session_name);
+		if (ret < 0) {
+			fprintf(stderr, "Error destroying %s\n", live_session_name);
+		}
+	}
 
 	return ret;
 }

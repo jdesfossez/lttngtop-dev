@@ -20,7 +20,7 @@
 
 int create_local_session();
 int destroy_local_session();
-int create_live_local_session();
-int destroy_live_local_session();
+int create_live_local_session(char **session_path, char **session_name, int print);
+int destroy_live_local_session(char *name);
 
 #endif /* LTTNG_SESSION_H */
