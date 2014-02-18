@@ -103,7 +103,7 @@ void insert_file(struct processtop *proc, int fd)
 		return;
 	if (fd >= proc->process_files_table->len) {
 		tmp = g_new0(struct files, 1);
-		tmp->name = "Unknown";
+		tmp->name = NULL;
 		tmp->read = 0;
 		tmp->write = 0;
 		tmp->fd = fd;
@@ -113,7 +113,7 @@ void insert_file(struct processtop *proc, int fd)
 		tmp = g_ptr_array_index(proc->process_files_table, fd);
 		if (tmp == NULL) {
 			tmp = g_new0(struct files, 1);
-			tmp->name = "Unknown";
+			tmp->name = NULL;
 			tmp->read = 0;
 			tmp->write = 0;
 			tmp->fd = fd;
@@ -124,7 +124,7 @@ void insert_file(struct processtop *proc, int fd)
 			if (parent) {
 				tmp_parent = g_ptr_array_index(
 					parent->process_files_table, fd);
-				if (tmp_parent &&
+				if (tmp_parent && tmp->name &&
 				   (strcmp(tmp->name, tmp_parent->name)) != 0)
 					tmp->name = strdup(tmp_parent->name);
 			}

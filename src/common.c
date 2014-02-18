@@ -298,7 +298,7 @@ struct processtop *get_proc_pid(struct lttngtop *ctx, int tid, int pid,
 	tmp = find_process_tid(ctx, tid, NULL);
 	if (tmp && tmp->pid == pid)
 		return tmp;
-	return add_proc(ctx, tid, "Unknown", timestamp, hostname);
+	return add_proc(ctx, tid, NULL, timestamp, hostname);
 }
 
 void add_thread(struct processtop *parent, struct processtop *thread)
@@ -502,7 +502,10 @@ struct lttngtop* get_copy_lttngtop(unsigned long start, unsigned long end)
 
 			if (tmpfile != NULL) {
 				memcpy(newfile, tmpfile, sizeof(struct files));
-				newfile->name = strdup(tmpfile->name);
+				if (tmpfile->name)
+					newfile->name = strdup(tmpfile->name);
+				else
+					newfile->name = NULL;
 				newfile->ref = new;
 				g_ptr_array_add(new->process_files_table,
 						newfile);
@@ -590,7 +593,7 @@ enum bt_cb_ret handle_statedump_process_state(struct bt_ctf_event *call_data,
 	struct processtop *proc;
 	unsigned long timestamp;
 	int64_t pid, tid, ppid, vtid, vpid, vppid;
-	char *procname, *hostname = NULL;
+	char *procname = NULL, *hostname = NULL;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 	if (timestamp == -1ULL)
