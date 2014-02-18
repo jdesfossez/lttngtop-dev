@@ -30,6 +30,11 @@ Input trace path
 
 LTTngTop requires that the pid, procname, tid and ppid context information
 are enabled during tracing.
+
+The command --create-local-session does all the required setup for a local
+trace (that must be stopped and destroyed manually by the user).
+And the command --create-live-session does all the required setup for a live
+trace on localhost (it must also be stopped and destroyed manually by the user).
 .PP
 
 .PP

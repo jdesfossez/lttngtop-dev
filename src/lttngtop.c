@@ -109,6 +109,7 @@ enum {
 	OPT_VERBOSE,
 	OPT_GUI_TEST,
 	OPT_CREATE_LOCAL_SESSION,
+	OPT_CREATE_LIVE_SESSION,
 };
 
 static struct poptOption long_options[] = {
@@ -127,6 +128,7 @@ static struct poptOption long_options[] = {
 	{ "verbose", 'v', POPT_ARG_NONE, NULL, OPT_VERBOSE, NULL, NULL },
 	{ "gui-test", 'g', POPT_ARG_NONE, NULL, OPT_GUI_TEST, NULL, NULL },
 	{ "create-local-session", 0, POPT_ARG_NONE, NULL, OPT_CREATE_LOCAL_SESSION, NULL, NULL },
+	{ "create-live-session", 0, POPT_ARG_NONE, NULL, OPT_CREATE_LIVE_SESSION, NULL, NULL },
 	{ NULL, 0, 0, NULL, 0, NULL, NULL },
 };
 
@@ -695,6 +697,8 @@ void usage(FILE *fp)
 	fprintf(fp, "  -b, --begin              Network live streaming : read the trace for the beginning of the recording\n");
 	fprintf(fp, "  -o, --output <filename>  In textdump, output the log in <filename>\n");
 	fprintf(fp, "  -g, --gui-test           Test if the ncurses support is compiled in (return 0 if it is)\n");
+	fprintf(fp, "  --create-local-session   Setup a LTTng local session with all the right parameters\n");
+	fprintf(fp, "  --create-live-session    Setup a LTTng live session on localhost with all the right parameters\n");
 }
 
 /*
@@ -804,6 +808,9 @@ static int parse_options(int argc, char **argv)
 				goto end;
 			case OPT_CREATE_LOCAL_SESSION:
 				ret = create_local_session();
+				exit(ret);
+			case OPT_CREATE_LIVE_SESSION:
+				ret = create_live_local_session();
 				exit(ret);
 			case OPT_TEXTDUMP:
 				opt_textdump = 1;

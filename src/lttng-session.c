@@ -32,6 +32,13 @@ int check_or_start_sessiond()
 			ret = -1;
 			goto end;
 		}
+		ret = system("sudo -l lttng >/dev/null");
+		if (ret < 0) {
+			fprintf(stderr, "[error] You are not root and not "
+					"allowed by sudo to use lttng\n");
+			ret = -1;
+			goto end;
+		}
 		sudo = 1;
 	}
 
@@ -236,7 +243,30 @@ end:
 }
 
 static
-int enable_event(char *name, int sudo)
+int live_local_session(char *name, int sudo)
+{
+	int ret;
+	char cmd[1024];
+
+	ret = sprintf(cmd, "%s lttng create %s --live 1000000 -U net://localhost >/dev/null",
+			(sudo) ? "sudo" : " ", name);
+	if (ret < 0) {
+		fprintf(stderr, "Allocating cmd\n");
+		goto end;
+	}
+	ret = (system(cmd));
+	if (ret != 0) {
+		fprintf(stderr, "Error: creating the session\n");
+		ret = -1;
+		goto end;
+	}
+
+end:
+	return ret;
+}
+
+static
+int enable_events(char *name, int sudo)
 {
 	int ret;
 	char cmd[1024];
@@ -284,7 +314,7 @@ end:
 }
 
 static
-int start(char *name, int sudo)
+int start(char *name, int sudo, int local)
 {
 	int ret;
 	char cmd[1024];
@@ -303,13 +333,19 @@ int start(char *name, int sudo)
 		goto end;
 	}
 
-	ret = sprintf(cmd, "%s lttng list|grep %s|cut -d'(' -f2|cut -d ')' -f1",
-			(sudo) ? "sudo" : " ", name);
+	if (local) {
+		ret = sprintf(cmd, "%s lttng list|grep %s|cut -d'(' -f2|cut -d ')' -f1",
+				(sudo) ? "sudo" : " ", name);
+	} else {
+		ret = sprintf(cmd, "lttngtop -r net://localhost|grep %s|cut -d' ' -f1",
+				name);
+	}
 	if (ret < 0) {
 		fprintf(stderr, "allocating cmd\n");
 		goto end;
 	}
-	fprintf(stderr, "Local session started in ");
+	fprintf(stderr, "%s session started : ",
+			(local) ? "Local" : "Live");
 	ret = (system(cmd));
 	if (ret != 0) {
 		fprintf(stderr, "error: listing the sessions\n");
@@ -322,10 +358,22 @@ end:
 }
 
 static
-int destroy(char *name, int sudo)
+int destroy(char *name)
 {
 	int ret;
+	int sudo = 0;
 	char cmd[1024];
+
+	if (getuid() != 0) {
+		ret = system("sudo -l lttng >/dev/null");
+		if (ret < 0) {
+			fprintf(stderr, "[error] You are not root and not "
+					"allowed by sudo to use lttng\n");
+			ret = -1;
+			goto end;
+		}
+		sudo = 1;
+	}
 
 	ret = sprintf(cmd, "%s lttng destroy %s >/dev/null",
 			(sudo) ? "sudo" : " ", name);
@@ -369,7 +417,7 @@ int create_local_session()
 		goto end_free;
 	}
 
-	ret = enable_event(name, sudo);
+	ret = enable_events(name, sudo);
 	if (ret < 0) {
 		goto end_free;
 	}
@@ -379,7 +427,7 @@ int create_local_session()
 		goto end_free;
 	}
 
-	ret = start(name, sudo);
+	ret = start(name, sudo, 1);
 	if (ret < 0) {
 		goto end_free;
 	}
@@ -390,9 +438,54 @@ end:
 	return ret;
 }
 
-int destroy_local_session(char *name, int sudo)
+int destroy_session(char *name)
 {
-	return destroy(name, sudo);
+	return destroy(name);
+}
+
+int create_live_local_session()
+{
+	int ret;
+	char *name;
+	int sudo = 0;
+
+	ret = check_requirements(&sudo);
+
+	name = random_session_name();
+	if (!name) {
+		ret = -1;
+		goto end;
+	}
+
+	ret = check_session_name(name, sudo);
+	if (ret < 0) {
+		goto end_free;
+	}
+
+	ret = live_local_session(name, sudo);
+	if (ret < 0) {
+		goto end_free;
+	}
+
+	ret = enable_events(name, sudo);
+	if (ret < 0) {
+		goto end_free;
+	}
+
+	ret = add_contexts(name, sudo);
+	if (ret < 0) {
+		goto end_free;
+	}
+
+	ret = start(name, sudo, 0);
+	if (ret < 0) {
+		goto end_free;
+	}
+
+end_free:
+	free(name);
+end:
+	return ret;
 }
 
 /*
