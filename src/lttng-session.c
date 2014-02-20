@@ -402,7 +402,8 @@ int destroy(char *name)
 	int sudo = 0;
 	char cmd[1024];
 
-	if (getuid() != 0) {
+	ret = system("groups|grep tracing >/dev/null");
+	if (ret != 0 && getuid() != 0) {
 		ret = system("sudo -l lttng >/dev/null");
 		if (ret < 0) {
 			fprintf(stderr, "[error] You are not root and not "
