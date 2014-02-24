@@ -124,7 +124,7 @@ void insert_file(struct processtop *proc, int fd)
 			if (parent) {
 				tmp_parent = g_ptr_array_index(
 					parent->process_files_table, fd);
-				if (tmp_parent && tmp->name &&
+				if (tmp_parent && tmp->name && tmp_parent->name &&
 				   (strcmp(tmp->name, tmp_parent->name)) != 0)
 					tmp->name = strdup(tmp_parent->name);
 			}
