@@ -272,8 +272,9 @@ int enable_events(char *name, int sudo)
 	int ret;
 	char cmd[1024];
 
-	ret = sprintf(cmd, "%s lttng enable-event -s %s -k %s >/dev/null",
-			(sudo) ? "sudo" : " ", name, event_list);
+	ret = sprintf(cmd, "%s lttng enable-event -s %s -k %s >/dev/null;"
+			"lttng enable-event -k --syscall -a -s %s >/dev/null",
+			(sudo) ? "sudo" : " ", name, event_list, name);
 	if (ret < 0) {
 		fprintf(stderr, "Allocating cmd\n");
 		goto end;
