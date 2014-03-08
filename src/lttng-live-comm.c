@@ -367,8 +367,8 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 	memset(&rq, 0, sizeof(rq));
 	rq.session_id = htobe64(id);
 	// TODO: add cmd line parameter to select seek beginning
-	rq.seek = htobe32(LTTNG_VIEWER_SEEK_BEGINNING);
-	//rq.seek = htobe32(LTTNG_VIEWER_SEEK_LAST);
+	//rq.seek = htobe32(LTTNG_VIEWER_SEEK_BEGINNING);
+	rq.seek = htobe32(LTTNG_VIEWER_SEEK_LAST);
 
 	do {
 		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
