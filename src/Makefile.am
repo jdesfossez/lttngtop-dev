@@ -68,5 +68,4 @@ lttngtop_SOURCES = \
 lttngtop_LDFLAGS = -Wl,--no-as-needed
 
 lttngtop_LDADD = -lbabeltrace -lbabeltrace-ctf -llttng-ctl \
-		 -lurcu -llttng-ust-ctl \
-		 $(top_builddir)/src/libbabeltrace-lttngtop-live.la
+		 -lurcu -llttng-ust-ctl $(lib_LTLIBRARIES)
