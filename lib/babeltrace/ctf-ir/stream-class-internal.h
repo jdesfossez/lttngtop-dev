@@ -1,8 +1,8 @@
-#ifndef BABELTRACE_CTF_WRITER_FUNCTOR_INTERNAL_H
-#define BABELTRACE_CTF_WRITER_FUNCTOR_INTERNAL_H
+#ifndef BABELTRACE_CTF_IR_STREAM_CLASS_INTERNAL_H
+#define BABELTRACE_CTF_IR_STREAM_CLASS_INTERNAL_H
 
 /*
- * BabelTrace - CTF Writer: Functors for use with glib data structures
+ * BabelTrace - CTF IR: Stream class internal
  *
  * Copyright 2013, 2014 Jérémie Galarneau <jeremie.galarneau@efficios.com>
  *
@@ -27,15 +27,40 @@
  * SOFTWARE.
  */
 
-#include <glib.h>
+#include <babeltrace/ctf-writer/ref-internal.h>
+#include <babeltrace/ctf-writer/clock.h>
+#include <babeltrace/ctf-writer/event-fields.h>
+#include <babeltrace/ctf-writer/event-types.h>
 #include <babeltrace/babeltrace-internal.h>
+#include <babeltrace/ctf/types.h>
+#include <glib.h>
 
-struct search_query {
-	gpointer value;
-	int found;
+struct bt_ctf_stream_class {
+	struct bt_ctf_ref ref_count;
+	GString *name;
+	struct bt_ctf_clock *clock;
+	GPtrArray *event_classes; /* Array of pointers to bt_ctf_event_class */
+	int id_set;
+	uint32_t id;
+	uint32_t next_event_id;
+	uint32_t next_stream_id;
+	struct bt_ctf_field_type *event_header_type;
+	struct bt_ctf_field *event_header;
+	struct bt_ctf_field_type *packet_context_type;
+	struct bt_ctf_field_type *event_context_type;
+	struct bt_ctf_field *event_context;
+	int frozen;
 };
 
 BT_HIDDEN
-void value_exists(gpointer element, gpointer search_query);
+void bt_ctf_stream_class_freeze(struct bt_ctf_stream_class *stream_class);
 
-#endif /* BABELTRACE_CTF_WRITER_FUNCTOR_INTERNAL_H */
+BT_HIDDEN
+int bt_ctf_stream_class_serialize(struct bt_ctf_stream_class *stream_class,
+		struct metadata_context *context);
+
+BT_HIDDEN
+int bt_ctf_stream_class_set_byte_order(struct bt_ctf_stream_class *stream_class,
+		enum bt_ctf_byte_order byte_order);
+
+#endif /* BABELTRACE_CTF_IR_STREAM_CLASS_INTERNAL_H */

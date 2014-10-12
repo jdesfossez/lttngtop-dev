@@ -1,5 +1,8 @@
+#ifndef BABELTRACE_CTF_IR_CLOCK_INTERNAL_H
+#define BABELTRACE_CTF_IR_CLOCK_INTERNAL_H
+
 /*
- * BabelTrace - CTF Writer: Event
+ * BabelTrace - CTF IR: Clock internal
  *
  * Copyright 2013, 2014 Jérémie Galarneau <jeremie.galarneau@efficios.com>
  *
@@ -22,9 +25,38 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- *
- * The Common Trace Format (CTF) Specification is available at
- * http://www.efficios.com/ctf
  */
 
-#include <babeltrace/ctf-ir/event.h>
+#include <babeltrace/ctf-writer/ref-internal.h>
+#include <babeltrace/ctf-writer/clock.h>
+#include <babeltrace/ctf-writer/writer-internal.h>
+#include <babeltrace/babeltrace-internal.h>
+#include <glib.h>
+#include <uuid/uuid.h>
+
+struct bt_ctf_clock {
+	struct bt_ctf_ref ref_count;
+	GString *name;
+	GString *description;
+	uint64_t frequency;
+	uint64_t precision;
+	uint64_t offset_s;	/* Offset in seconds */
+	uint64_t offset;	/* Offset in ticks */
+	uint64_t time;		/* Current clock value */
+	uuid_t uuid;
+	int absolute;
+	/*
+	 * A clock's properties can't be modified once it is added to a stream
+	 * class.
+	 */
+	int frozen;
+};
+
+BT_HIDDEN
+void bt_ctf_clock_freeze(struct bt_ctf_clock *clock);
+
+BT_HIDDEN
+void bt_ctf_clock_serialize(struct bt_ctf_clock *clock,
+		struct metadata_context *context);
+
+#endif /* BABELTRACE_CTF_IR_CLOCK_INTERNAL_H */

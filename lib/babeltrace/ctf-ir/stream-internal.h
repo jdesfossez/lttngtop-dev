@@ -1,5 +1,8 @@
+#ifndef BABELTRACE_CTF_WRITER_STREAM_INTERNAL_H
+#define BABELTRACE_CTF_WRITER_STREAM_INTERNAL_H
+
 /*
- * BabelTrace - CTF Writer: Event
+ * BabelTrace - CTF Writer: Stream internal
  *
  * Copyright 2013, 2014 Jérémie Galarneau <jeremie.galarneau@efficios.com>
  *
@@ -22,9 +25,44 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- *
- * The Common Trace Format (CTF) Specification is available at
- * http://www.efficios.com/ctf
  */
 
-#include <babeltrace/ctf-ir/event.h>
+#include <babeltrace/ctf-writer/ref-internal.h>
+#include <babeltrace/ctf-writer/clock.h>
+#include <babeltrace/ctf-writer/event-fields.h>
+#include <babeltrace/ctf-writer/event-types.h>
+#include <babeltrace/babeltrace-internal.h>
+#include <babeltrace/ctf/types.h>
+#include <glib.h>
+
+typedef void(*flush_func)(struct bt_ctf_stream *, void *);
+
+struct flush_callback {
+	flush_func func;
+	void *data;
+};
+
+struct bt_ctf_stream {
+	struct bt_ctf_ref ref_count;
+	uint32_t id;
+	struct bt_ctf_stream_class *stream_class;
+	struct flush_callback flush;
+	/* Array of pointers to bt_ctf_event for the current packet */
+	GPtrArray *events;
+	struct ctf_stream_pos pos;
+	unsigned int flushed_packet_count;
+	struct bt_ctf_field *packet_context;
+};
+
+BT_HIDDEN
+struct bt_ctf_stream *bt_ctf_stream_create(
+		struct bt_ctf_stream_class *stream_class);
+
+BT_HIDDEN
+int bt_ctf_stream_set_flush_callback(struct bt_ctf_stream *stream,
+		flush_func callback, void *data);
+
+BT_HIDDEN
+int bt_ctf_stream_set_fd(struct bt_ctf_stream *stream, int fd);
+
+#endif /* BABELTRACE_CTF_WRITER_STREAM_INTERNAL_H */

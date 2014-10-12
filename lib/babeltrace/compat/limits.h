@@ -1,9 +1,8 @@
+#ifndef _BABELTRACE_LIMITS_H
+#define _BABELTRACE_LIMITS_H
+
 /*
- * BabelTrace - CTF Writer: Event
- *
- * Copyright 2013, 2014 Jérémie Galarneau <jeremie.galarneau@efficios.com>
- *
- * Author: Jérémie Galarneau <jeremie.galarneau@efficios.com>
+ * Copyright (C) 2014 Jérémie Galarneau <jeremie.galarneau@efficios.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,9 +21,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- *
- * The Common Trace Format (CTF) Specification is available at
- * http://www.efficios.com/ctf
  */
 
-#include <babeltrace/ctf-ir/event.h>
+#include <limits.h>
+
+#ifdef __linux__
+
+#define BABELTRACE_HOST_NAME_MAX HOST_NAME_MAX
+
+#elif defined(__FreeBSD__)
+
+#define BABELTRACE_HOST_NAME_MAX MAXHOSTNAMELEN
+
+#elif defined(_POSIX_HOST_NAME_MAX)
+
+#define BABELTRACE_HOST_NAME_MAX _POSIX_HOST_NAME_MAX
+
+#else
+
+#define BABELTRACE_HOST_NAME_MAX 256
+
+#endif /* __linux__, __FreeBSD__, _POSIX_HOST_NAME_MAX */
+
+#endif /* _BABELTRACE_LIMITS_H */

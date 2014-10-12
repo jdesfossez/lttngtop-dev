@@ -1,7 +1,7 @@
 /*
- * BabelTrace - CTF Writer: Event
+ * BabelTrace - CTF Writer: Stream Class
  *
- * Copyright 2013, 2014 Jérémie Galarneau <jeremie.galarneau@efficios.com>
+ * Copyright 2014 EfficiOS Inc.
  *
  * Author: Jérémie Galarneau <jeremie.galarneau@efficios.com>
  *
@@ -27,4 +27,4 @@
  * http://www.efficios.com/ctf
  */
 
-#include <babeltrace/ctf-ir/event.h>
+#include <babeltrace/ctf-ir/stream-class.h>
