@@ -39,7 +39,7 @@ To compile Babeltrace and lttngtop, you will need:
 	  (Fedora : popt)
 	ncurses development libraries
 	  (Debian : libncurses5-dev)
-	babeltrace development library
+	babeltrace >= 1.2.0 development library
 
 For developers using the git tree:
 
