@@ -25,8 +25,8 @@
  */
 
 #include <stdint.h>
+#include "lttng-viewer-abi.h"
 
-#define LTTNG_METADATA_PATH_TEMPLATE		"/tmp/lttng-live-XXXXXX"
 #define LTTNG_DEFAULT_NETWORK_VIEWER_PORT	5344
 
 #define LTTNG_LIVE_MAJOR			2
@@ -38,6 +38,9 @@ struct lttng_live_ctx {
 	char relay_hostname[NAME_MAX];
 	int control_sock;
 	int port;
+	/* Protocol version to use for this connection. */
+	uint32_t major;
+	uint32_t minor;
 	struct lttng_live_session *session;
 	struct bt_context *bt_ctx;
 	GArray *session_ids;
@@ -46,11 +49,14 @@ struct lttng_live_ctx {
 struct lttng_live_viewer_stream {
 	uint64_t id;
 	uint64_t mmap_size;
-	int fd;
+	uint64_t ctf_stream_id;
+	FILE *metadata_fp_write;
+	ssize_t metadata_len;
 	int metadata_flag;
-	int first_read;
+	int data_pending;
 	struct lttng_live_session *session;
 	struct lttng_live_ctf_trace *ctf_trace;
+	struct lttng_viewer_index current_index;
 	char path[PATH_MAX];
 };
 
@@ -67,6 +73,7 @@ struct lttng_live_ctf_trace {
 	struct lttng_live_viewer_stream *metadata_stream;
 	GPtrArray *streams;
 	FILE *metadata_fp;
+	struct bt_trace_handle *handle;
 	int trace_id;
 	int in_use;
 };
@@ -84,7 +91,8 @@ int lttng_live_connect_viewer(struct lttng_live_ctx *ctx);
 int lttng_live_establish_connection(struct lttng_live_ctx *ctx);
 int lttng_live_list_sessions(struct lttng_live_ctx *ctx, const char *path);
 int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id);
-void lttng_live_read(struct lttng_live_ctx *ctx);
+int lttng_live_read(struct lttng_live_ctx *ctx);
 int lttng_live_get_new_streams(struct lttng_live_ctx *ctx, uint64_t id);
+int lttng_live_should_quit(void);
 
 #endif /* _LTTNG_LIVE_FUNCTIONS_H */

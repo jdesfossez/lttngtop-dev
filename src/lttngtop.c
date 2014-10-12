@@ -40,6 +40,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <lttng/lttng.h>
+
 #ifdef LTTNGTOP_MMAP_LIVE
 #include <lttng/lttngtop-helper.h>
 #include <babeltrace/lttngtopmmappacketseek.h>

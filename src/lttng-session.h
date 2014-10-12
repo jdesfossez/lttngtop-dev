@@ -15,12 +15,12 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef LTTNG_SESSION_H
-#define LTTNG_SESSION_H
+#ifndef LTTNGTOP_SESSION_H
+#define LTTNGTOP_SESSION_H
 
 int create_local_session();
 int destroy_local_session();
 int create_live_local_session(char **session_path, char **session_name, int print);
 int destroy_live_local_session(char *name);
 
-#endif /* LTTNG_SESSION_H */
+#endif /* LTTNGTOP_SESSION_H */

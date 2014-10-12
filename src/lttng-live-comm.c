@@ -33,6 +33,7 @@
 #include <inttypes.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <poll.h>
 
 #include <babeltrace/ctf/ctf-index.h>
 
@@ -47,6 +48,8 @@
 #include <babeltrace/ctf/metadata.h>
 #include <babeltrace/ctf-text/types.h>
 #include <babeltrace/ctf/events-internal.h>
+#include <babeltrace/endian.h>
+#include <babeltrace/compat/memstream.h>
 /*
 #include <formats/ctf/events-private.h>
 replaced with
@@ -56,6 +59,8 @@ replaced with
 
 #include "lttng-live-comm.h"
 #include "lttng-viewer-abi.h"
+
+#define ACTIVE_POLL_DELAY       100     /* ms */
 
 /*
  * Memory allocation zeroed
@@ -71,6 +76,41 @@ static void ctf_live_packet_seek(struct bt_stream_pos *stream_pos,
 		size_t index, int whence);
 static void add_traces(gpointer key, gpointer value, gpointer user_data);
 static int del_traces(gpointer key, gpointer value, gpointer user_data);
+static int get_new_metadata(struct lttng_live_ctx *ctx,
+		struct lttng_live_viewer_stream *viewer_stream,
+		char **metadata_buf);
+
+static
+ssize_t lttng_live_recv(int fd, void *buf, size_t len)
+{
+	ssize_t ret;
+	size_t copied = 0, to_copy = len;
+
+	do {
+		ret = recv(fd, buf + copied, to_copy, 0);
+		if (ret > 0) {
+			assert(ret <= to_copy);
+			copied += ret;
+			to_copy -= ret;
+		}
+	} while ((ret > 0 && to_copy > 0)
+		|| (ret < 0 && errno == EINTR));
+	if (ret > 0)
+		ret = copied;
+	/* ret = 0 means orderly shutdown, ret < 0 is error. */
+	return ret;
+}
+
+static
+ssize_t lttng_live_send(int fd, const void *buf, size_t len)
+{
+	ssize_t ret;
+
+	do {
+		ret = send(fd, buf, len, MSG_NOSIGNAL);
+	} while (ret < 0 && errno == EINTR);
+	return ret;
+}
 
 int lttng_live_connect_viewer(struct lttng_live_ctx *ctx)
 {
@@ -78,16 +118,21 @@ int lttng_live_connect_viewer(struct lttng_live_ctx *ctx)
 	struct sockaddr_in server_addr;
 	int ret;
 
-	host = gethostbyname(ctx->relay_hostname);
-	if (!host) {
+	if (lttng_live_should_quit()) {
 		ret = -1;
 		goto end;
 	}
 
+	host = gethostbyname(ctx->relay_hostname);
+	if (!host) {
+		fprintf(stderr, "[error] Cannot lookup hostname %s\n",
+			ctx->relay_hostname);
+		goto error;
+	}
+
 	if ((ctx->control_sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 		perror("Socket");
-		ret = -1;
-		goto end;
+		goto error;
 	}
 
 	server_addr.sin_family = AF_INET;
@@ -98,14 +143,17 @@ int lttng_live_connect_viewer(struct lttng_live_ctx *ctx)
 	if (connect(ctx->control_sock, (struct sockaddr *) &server_addr,
 				sizeof(struct sockaddr)) == -1) {
 		perror("Connect");
-		ret = -1;
-		goto end;
+		goto error;
 	}
 
 	ret = 0;
 
 end:
 	return ret;
+
+error:
+	fprintf(stderr, "[error] Connection failed\n");
+	return -1;
 }
 
 int lttng_live_establish_connection(struct lttng_live_ctx *ctx)
@@ -114,6 +162,11 @@ int lttng_live_establish_connection(struct lttng_live_ctx *ctx)
 	struct lttng_viewer_connect connect;
 	int ret;
 	ssize_t ret_len;
+
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
 
 	cmd.cmd = htobe32(LTTNG_VIEWER_CONNECT);
 	cmd.data_size = sizeof(connect);
@@ -124,37 +177,27 @@ int lttng_live_establish_connection(struct lttng_live_ctx *ctx)
 	connect.minor = htobe32(LTTNG_LIVE_MINOR);
 	connect.type = htobe32(LTTNG_VIEWER_CLIENT_COMMAND);
 
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = send(ctx->control_sock, &connect, sizeof(connect), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &connect, sizeof(connect));
 	if (ret_len < 0) {
 		perror("[error] Error sending version");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(connect));
 
-	do {
-		ret_len = recv(ctx->control_sock, &connect, sizeof(connect), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, &connect, sizeof(connect));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving version");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(connect));
@@ -164,10 +207,24 @@ int lttng_live_establish_connection(struct lttng_live_ctx *ctx)
 	printf_verbose("Relayd version : %u.%u\n", be32toh(connect.major),
 			be32toh(connect.minor));
 
+	if (LTTNG_LIVE_MAJOR != be32toh(connect.major)) {
+		fprintf(stderr, "[error] Incompatible lttng-relayd protocol\n");
+		goto error;
+	}
+	/* Use the smallest protocol version implemented. */
+	if (LTTNG_LIVE_MINOR > be32toh(connect.minor)) {
+		ctx->minor =  be32toh(connect.minor);
+	} else {
+		ctx->minor =  LTTNG_LIVE_MINOR;
+	}
+	ctx->major = LTTNG_LIVE_MAJOR;
 	ret = 0;
+end:
+	return ret;
 
 error:
-	return ret;
+	fprintf(stderr, "[error] Unable to establish connection\n");
+	return -1;
 }
 
 static
@@ -242,6 +299,11 @@ int lttng_live_list_sessions(struct lttng_live_ctx *ctx, const char *path)
 	uint64_t session_id;
 	GPtrArray *session_list = NULL;
 
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
+
 	if (strlen(ctx->session_name) == 0) {
 		print_list = 1;
 		session_list = g_ptr_array_new();
@@ -251,44 +313,33 @@ int lttng_live_list_sessions(struct lttng_live_ctx *ctx, const char *path)
 	cmd.data_size = 0;
 	cmd.cmd_version = 0;
 
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = recv(ctx->control_sock, &list, sizeof(list), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, &list, sizeof(list));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving session list");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(list));
 
 	sessions_count = be32toh(list.sessions_count);
 	for (i = 0; i < sessions_count; i++) {
-		do {
-			ret_len = recv(ctx->control_sock, &lsession, sizeof(lsession), MSG_WAITALL);
-		} while (ret_len < 0 && errno == EINTR);
+		ret_len = lttng_live_recv(ctx->control_sock, &lsession, sizeof(lsession));
 		if (ret_len == 0) {
 			fprintf(stderr, "[error] Remote side has closed connection\n");
-			ret = -1;
 			goto error;
 		}
 		if (ret_len < 0) {
 			perror("[error] Error receiving session");
-			ret = ret_len;
 			goto error;
 		}
 		assert(ret_len == sizeof(lsession));
@@ -319,11 +370,13 @@ int lttng_live_list_sessions(struct lttng_live_ctx *ctx, const char *path)
 		print_session_list(session_list, path);
 		free_session_list(session_list);
 	}
-
 	ret = 0;
+end:
+	return ret;
 
 error:
-	return ret;
+	fprintf(stderr, "[error] Unable to list sessions\n");
+	return -1;
 }
 
 int lttng_live_ctf_trace_assign(struct lttng_live_viewer_stream *stream,
@@ -351,6 +404,22 @@ int lttng_live_ctf_trace_assign(struct lttng_live_viewer_stream *stream,
 	return ret;
 }
 
+static
+int open_metadata_fp_write(struct lttng_live_viewer_stream *stream,
+		char **metadata_buf, size_t *size)
+{
+	int ret = 0;
+
+	stream->metadata_fp_write =
+		babeltrace_open_memstream(metadata_buf, size);
+	if (!stream->metadata_fp_write) {
+		perror("Metadata open_memstream");
+		ret = -1;
+	}
+
+	return ret;
+}
+
 int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 {
 	struct lttng_viewer_cmd cmd;
@@ -360,6 +429,11 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 	int ret, i;
 	ssize_t ret_len;
 
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
+
 	cmd.cmd = htobe32(LTTNG_VIEWER_ATTACH_SESSION);
 	cmd.data_size = sizeof(rq);
 	cmd.cmd_version = 0;
@@ -367,40 +441,30 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 	memset(&rq, 0, sizeof(rq));
 	rq.session_id = htobe64(id);
 	// TODO: add cmd line parameter to select seek beginning
-	//rq.seek = htobe32(LTTNG_VIEWER_SEEK_BEGINNING);
+	// rq.seek = htobe32(LTTNG_VIEWER_SEEK_BEGINNING);
 	rq.seek = htobe32(LTTNG_VIEWER_SEEK_LAST);
 
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = send(ctx->control_sock, &rq, sizeof(rq), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &rq, sizeof(rq));
 	if (ret_len < 0) {
 		perror("[error] Error sending attach request");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rq));
 
-	do {
-		ret_len = recv(ctx->control_sock, &rp, sizeof(rp), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, &rp, sizeof(rp));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving attach response");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rp));
@@ -413,25 +477,20 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 		goto end;
 	case LTTNG_VIEWER_ATTACH_ALREADY:
 		fprintf(stderr, "[error] There is already a viewer attached to this session\n");
-		ret = -1;
-		goto end;
+		goto error;
 	case LTTNG_VIEWER_ATTACH_NOT_LIVE:
 		fprintf(stderr, "[error] Not a live session\n");
-		ret = -1;
-		goto end;
+		goto error;
 	case LTTNG_VIEWER_ATTACH_SEEK_ERR:
 		fprintf(stderr, "[error] Wrong seek parameter\n");
-		ret = -1;
-		goto end;
+		goto error;
 	default:
 		fprintf(stderr, "[error] Unknown attach return code %u\n",
 				be32toh(rp.status));
-		ret = -1;
-		goto end;
+		goto error;
 	}
 	if (be32toh(rp.status) != LTTNG_VIEWER_ATTACH_OK) {
-		ret = -1;
-		goto end;
+		goto error;
 	}
 
 	ctx->session->stream_count += be32toh(rp.streams_count);
@@ -444,22 +503,18 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 		ret = 0;
 		goto end;
 	}
-	printf_verbose("Waiting for %u streams:\n",
-		be32toh(rp.streams_count));
+	printf_verbose("Waiting for %" PRIu64 " streams:\n",
+		ctx->session->stream_count);
 	ctx->session->streams = g_new0(struct lttng_live_viewer_stream,
 			ctx->session->stream_count);
 	for (i = 0; i < be32toh(rp.streams_count); i++) {
-		do {
-			ret_len = recv(ctx->control_sock, &stream, sizeof(stream), MSG_WAITALL);
-		} while (ret_len < 0 && errno == EINTR);
+		ret_len = lttng_live_recv(ctx->control_sock, &stream, sizeof(stream));
 		if (ret_len == 0) {
 			fprintf(stderr, "[error] Remote side has closed connection\n");
-			ret = -1;
 			goto error;
 		}
 		if (ret_len < 0) {
 			perror("[error] Error receiving stream");
-			ret = ret_len;
 			goto error;
 		}
 		assert(ret_len == sizeof(stream));
@@ -472,39 +527,11 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 		ctx->session->streams[i].id = be64toh(stream.id);
 		ctx->session->streams[i].session = ctx->session;
 
-		ctx->session->streams[i].first_read = 1;
 		ctx->session->streams[i].mmap_size = 0;
+		ctx->session->streams[i].ctf_stream_id = -1ULL;
 
 		if (be32toh(stream.metadata_flag)) {
-			char *path;
-
-			path = strdup(LTTNG_METADATA_PATH_TEMPLATE);
-			if (!path) {
-				perror("strdup");
-				ret = -1;
-				goto error;
-			}
-			if (!mkdtemp(path)) {
-				perror("mkdtemp");
-				free(path);
-				ret = -1;
-				goto error;
-			}
 			ctx->session->streams[i].metadata_flag = 1;
-			snprintf(ctx->session->streams[i].path,
-					sizeof(ctx->session->streams[i].path),
-					"%s/%s", path,
-					stream.channel_name);
-			ret = open(ctx->session->streams[i].path,
-					O_WRONLY | O_CREAT | O_TRUNC,
-					S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-			if (ret < 0) {
-				perror("open");
-				free(path);
-				goto error;
-			}
-			ctx->session->streams[i].fd = ret;
-			free(path);
 		}
 		ret = lttng_live_ctf_trace_assign(&ctx->session->streams[i],
 				be64toh(stream.ctf_trace_id));
@@ -514,25 +541,33 @@ int lttng_live_attach_session(struct lttng_live_ctx *ctx, uint64_t id)
 
 	}
 	ret = 0;
-
 end:
-error:
 	return ret;
+
+error:
+	return -1;
 }
 
+/*
+ * Ask the relay for new streams.
+ *
+ * Returns the number of new streams received or a negative value on error.
+ */
 static
 int ask_new_streams(struct lttng_live_ctx *ctx)
 {
-	int i, ret = 0;
+	int i, ret = 0, nb_streams = 0;
 	uint64_t id;
 
 restart:
 	for (i = 0; i < ctx->session_ids->len; i++) {
 		id = g_array_index(ctx->session_ids, uint64_t, i);
 		ret = lttng_live_get_new_streams(ctx, id);
-		printf_verbose("Asking for new streams returns %d\n",
-				ret);
+		printf_verbose("Asking for new streams returns %d\n", ret);
 		if (ret < 0) {
+			if (lttng_live_should_quit()) {
+				goto end;
+			}
 			if (ret == -LTTNG_VIEWER_NEW_STREAMS_HUP) {
 				printf_verbose("Session %" PRIu64 " closed\n",
 						id);
@@ -551,10 +586,52 @@ restart:
 				ret = -1;
 				goto end;
 			}
+		} else {
+			nb_streams += ret;
 		}
 	}
+	ret = nb_streams;
 
 end:
+	return ret;
+}
+
+static
+int append_metadata(struct lttng_live_ctx *ctx,
+		struct lttng_live_viewer_stream *viewer_stream)
+{
+	int ret;
+	struct lttng_live_viewer_stream *metadata;
+	char *metadata_buf = NULL;
+
+	printf_verbose("get_next_index: new metadata needed\n");
+	ret = get_new_metadata(ctx, viewer_stream, &metadata_buf);
+	if (ret < 0) {
+		free(metadata_buf);
+		goto error;
+	}
+
+	metadata = viewer_stream->ctf_trace->metadata_stream;
+	metadata->ctf_trace->metadata_fp =
+		babeltrace_fmemopen(metadata_buf,
+				metadata->metadata_len, "rb");
+	if (!metadata->ctf_trace->metadata_fp) {
+		perror("Metadata fmemopen");
+		free(metadata_buf);
+		ret = -1;
+		goto error;
+	}
+	ret = ctf_append_trace_metadata(
+			viewer_stream->ctf_trace->handle->td,
+			metadata->ctf_trace->metadata_fp);
+	/* We accept empty metadata packets */
+	if (ret != 0 && ret != -ENOENT) {
+		fprintf(stderr, "[error] Appending metadata\n");
+		goto error;
+	}
+	ret = 0;
+
+error:
 	return ret;
 }
 
@@ -570,54 +647,47 @@ int get_data_packet(struct lttng_live_ctx *ctx,
 	ssize_t ret_len;
 	int ret;
 
+retry:
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
 	cmd.cmd = htobe32(LTTNG_VIEWER_GET_PACKET);
 	cmd.data_size = sizeof(rq);
 	cmd.cmd_version = 0;
 
 	memset(&rq, 0, sizeof(rq));
 	rq.stream_id = htobe64(stream->id);
-	/* Already in big endian. */
-	rq.offset = offset;
+	rq.offset = htobe64(offset);
 	rq.len = htobe32(len);
 
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = send(ctx->control_sock, &rq, sizeof(rq), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &rq, sizeof(rq));
 	if (ret_len < 0) {
 		perror("[error] Error sending get_data_packet request");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rq));
 
-	do {
-		ret_len = recv(ctx->control_sock, &rp, sizeof(rp), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, &rp, sizeof(rp));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving data response");
-		ret = ret_len;
 		goto error;
 	}
 	if (ret_len != sizeof(rp)) {
 		fprintf(stderr, "[error] get_data_packet: expected %" PRId64
-				", received %" PRId64 "\n", ret_len,
-				sizeof(rp));
-		ret = -1;
+				", received %" PRId64 "\n", sizeof(rp),
+				ret_len);
 		goto error;
 	}
 
@@ -630,41 +700,41 @@ int get_data_packet(struct lttng_live_ctx *ctx,
 				"\n", len);
 		break;
 	case LTTNG_VIEWER_GET_PACKET_RETRY:
+		/* Unimplemented by relay daemon */
 		printf_verbose("get_data_packet: retry\n");
-		ret = -1;
-		goto end;
+		goto error;
 	case LTTNG_VIEWER_GET_PACKET_ERR:
 		if (rp.flags & LTTNG_VIEWER_FLAG_NEW_METADATA) {
 			printf_verbose("get_data_packet: new metadata needed\n");
-			ret = 0;
-			goto end;
+			ret = append_metadata(ctx, stream);
+			if (ret)
+				goto error;
 		}
 		if (rp.flags & LTTNG_VIEWER_FLAG_NEW_STREAM) {
 			printf_verbose("get_data_packet: new streams needed\n");
 			ret = ask_new_streams(ctx);
 			if (ret < 0)
 				goto error;
-			g_hash_table_foreach(ctx->session->ctf_traces, add_traces,
-					ctx->bt_ctx);
-			ret = 0;
-			goto end;
+			else if (ret > 0)
+				g_hash_table_foreach(ctx->session->ctf_traces,
+						add_traces, ctx->bt_ctx);
+		}
+		if (rp.flags & (LTTNG_VIEWER_FLAG_NEW_METADATA
+				| LTTNG_VIEWER_FLAG_NEW_STREAM)) {
+			goto retry;
 		}
 		fprintf(stderr, "[error] get_data_packet: error\n");
-		ret = -1;
-		goto end;
+		goto error;
 	case LTTNG_VIEWER_GET_PACKET_EOF:
 		ret = -2;
-		goto error;
+		goto end;
 	default:
 		printf_verbose("get_data_packet: unknown\n");
-		assert(0);
-		ret = -1;
-		goto end;
+		goto error;
 	}
 
-	if (len <= 0) {
-		ret = -1;
-		goto end;
+	if (len == 0) {
+		goto error;
 	}
 
 	if (len > stream->mmap_size) {
@@ -676,7 +746,6 @@ int get_data_packet(struct lttng_live_ctx *ctx,
 			ret = munmap_align(pos->base_mma);
 			if (ret) {
 				perror("[error] Unable to unmap old base");
-				ret = -1;
 				goto error;
 			}
 			pos->base_mma = NULL;
@@ -687,7 +756,6 @@ int get_data_packet(struct lttng_live_ctx *ctx,
 		if (pos->base_mma == MAP_FAILED) {
 			perror("[error] mmap error");
 			pos->base_mma = NULL;
-			ret = -1;
 			goto error;
 		}
 
@@ -696,83 +764,68 @@ int get_data_packet(struct lttng_live_ctx *ctx,
 				stream->mmap_size);
 	}
 
-	do {
-		ret_len = recv(ctx->control_sock,
-			mmap_align_addr(pos->base_mma), len,
-			MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock,
+			mmap_align_addr(pos->base_mma), len);
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving trace packet");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == len);
-
+	ret = 0;
 end:
-error:
 	return ret;
+
+error:
+	return -1;
 }
 
-/*
- * Return number of metadata bytes written or a negative value on error.
- */
 static
-int get_new_metadata(struct lttng_live_ctx *ctx,
-		struct lttng_live_viewer_stream *viewer_stream,
-		uint64_t *metadata_len)
+int get_one_metadata_packet(struct lttng_live_ctx *ctx,
+		struct lttng_live_viewer_stream *metadata_stream)
 {
 	uint64_t len = 0;
 	int ret;
 	struct lttng_viewer_cmd cmd;
 	struct lttng_viewer_get_metadata rq;
 	struct lttng_viewer_metadata_packet rp;
-	struct lttng_live_viewer_stream *metadata_stream;
 	char *data = NULL;
 	ssize_t ret_len;
 
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
+
+	rq.stream_id = htobe64(metadata_stream->id);
 	cmd.cmd = htobe32(LTTNG_VIEWER_GET_METADATA);
 	cmd.data_size = sizeof(rq);
 	cmd.cmd_version = 0;
 
-	metadata_stream = viewer_stream->ctf_trace->metadata_stream;
-	rq.stream_id = htobe64(metadata_stream->id);
-
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = send(ctx->control_sock, &rq, sizeof(rq), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &rq, sizeof(rq));
 	if (ret_len < 0) {
 		perror("[error] Error sending get_metadata request");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rq));
 
-	do {
-		ret_len = recv(ctx->control_sock, &rp, sizeof(rp), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, &rp, sizeof(rp));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving metadata response");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rp));
@@ -783,65 +836,122 @@ int get_new_metadata(struct lttng_live_ctx *ctx,
 			break;
 		case LTTNG_VIEWER_NO_NEW_METADATA:
 			printf_verbose("get_metadata : NO NEW\n");
-			ret = -1;
+			ret = 0;
 			goto end;
 		case LTTNG_VIEWER_METADATA_ERR:
 			printf_verbose("get_metadata : ERR\n");
-			ret = -1;
-			goto end;
+			goto error;
 		default:
 			printf_verbose("get_metadata : UNKNOWN\n");
-			ret = -1;
-			goto end;
+			goto error;
 	}
 
 	len = be64toh(rp.len);
 	printf_verbose("Writing %" PRIu64" bytes to metadata\n", len);
 	if (len <= 0) {
-		ret = -1;
-		goto end;
+		goto error;
 	}
 
 	data = zmalloc(len);
 	if (!data) {
 		perror("relay data zmalloc");
-		ret = -1;
 		goto error;
 	}
-	do {
-		ret_len = recv(ctx->control_sock, data, len, MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, data, len);
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
-		free(data);
-		goto error;
+		goto error_free_data;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving trace packet");
-		ret = ret_len;
-		free(data);
-		goto error;
+		goto error_free_data;
 	}
 	assert(ret_len == len);
 
 	do {
-		ret_len = write(metadata_stream->fd, data, len);
+		ret_len = fwrite(data, 1, len,
+				metadata_stream->metadata_fp_write);
 	} while (ret_len < 0 && errno == EINTR);
 	if (ret_len < 0) {
-		free(data);
-		ret = ret_len;
-		goto error;
+		fprintf(stderr, "[error] Writing in the metadata fp\n");
+		goto error_free_data;
 	}
 	assert(ret_len == len);
-
+	metadata_stream->metadata_len += len;
 	free(data);
-
-	*metadata_len = len;
-	ret = 0;
+	ret = len;
 end:
+	return ret;
+
+error_free_data:
+	free(data);
+error:
+	return -1;
+}
+
+/*
+ * Return 0 on success, a negative value on error.
+ */
+static
+int get_new_metadata(struct lttng_live_ctx *ctx,
+		struct lttng_live_viewer_stream *viewer_stream,
+		char **metadata_buf)
+{
+	int ret = 0;
+	struct lttng_live_viewer_stream *metadata_stream;
+	size_t size, len_read = 0;
+
+	metadata_stream = viewer_stream->ctf_trace->metadata_stream;
+	if (!metadata_stream) {
+		fprintf(stderr, "[error] No metadata stream\n");
+		ret = -1;
+		goto error;
+	}
+	metadata_stream->metadata_len = 0;
+	ret = open_metadata_fp_write(metadata_stream, metadata_buf, &size);
+	if (ret < 0) {
+		goto error;
+	}
+
+	do {
+		/*
+		 * get_one_metadata_packet returns the number of bytes
+		 * received, 0 when we have received everything, a
+		 * negative value on error.
+		 */
+		ret = get_one_metadata_packet(ctx, metadata_stream);
+		if (ret > 0) {
+			len_read += ret;
+		}
+		if (!len_read) {
+			(void) poll(NULL, 0, ACTIVE_POLL_DELAY);
+		}
+	} while (ret > 0 || !len_read);
+
+	if (fclose(metadata_stream->metadata_fp_write))
+		perror("fclose");
+	metadata_stream->metadata_fp_write = NULL;
+
 error:
 	return ret;
+}
+
+/*
+ * Assign the fields from a lttng_viewer_index to a packet_index.
+ */
+static
+void lttng_index_to_packet_index(struct lttng_viewer_index *lindex,
+		struct packet_index *pindex)
+{
+	assert(lindex);
+	assert(pindex);
+
+	pindex->offset = be64toh(lindex->offset);
+	pindex->packet_size = be64toh(lindex->packet_size);
+	pindex->content_size = be64toh(lindex->content_size);
+	pindex->ts_cycles.timestamp_begin = be64toh(lindex->timestamp_begin);
+	pindex->ts_cycles.timestamp_end = be64toh(lindex->timestamp_end);
+	pindex->events_discarded = be64toh(lindex->events_discarded);
 }
 
 /*
@@ -852,14 +962,13 @@ error:
 static
 int get_next_index(struct lttng_live_ctx *ctx,
 		struct lttng_live_viewer_stream *viewer_stream,
-		struct packet_index *index)
+		struct packet_index *index, uint64_t *stream_id)
 {
 	struct lttng_viewer_cmd cmd;
 	struct lttng_viewer_get_next_index rq;
-	struct lttng_viewer_index rp;
 	int ret;
-	uint64_t metadata_len;
 	ssize_t ret_len;
+	struct lttng_viewer_index *rp = &viewer_stream->current_index;
 
 	cmd.cmd = htobe32(LTTNG_VIEWER_GET_NEXT_INDEX);
 	cmd.data_size = sizeof(rq);
@@ -869,99 +978,166 @@ int get_next_index(struct lttng_live_ctx *ctx,
 	rq.stream_id = htobe64(viewer_stream->id);
 
 retry:
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = send(ctx->control_sock, &rq, sizeof(rq), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &rq, sizeof(rq));
 	if (ret_len < 0) {
 		perror("[error] Error sending get_next_index request");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rq));
 
-	do {
-		ret_len = recv(ctx->control_sock, &rp, sizeof(rp), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, rp, sizeof(*rp));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving index response");
-		ret = ret_len;
 		goto error;
 	}
-	assert(ret_len == sizeof(rp));
+	assert(ret_len == sizeof(*rp));
 
-	rp.flags = be32toh(rp.flags);
+	rp->flags = be32toh(rp->flags);
 
-	switch (be32toh(rp.status)) {
+	switch (be32toh(rp->status)) {
 	case LTTNG_VIEWER_INDEX_INACTIVE:
 		printf_verbose("get_next_index: inactive\n");
 		memset(index, 0, sizeof(struct packet_index));
-		index->ts_cycles.timestamp_end = be64toh(rp.timestamp_end);
+		index->ts_cycles.timestamp_end = be64toh(rp->timestamp_end);
+		*stream_id = be64toh(rp->stream_id);
 		break;
 	case LTTNG_VIEWER_INDEX_OK:
 		printf_verbose("get_next_index: Ok, need metadata update : %u\n",
-				rp.flags & LTTNG_VIEWER_FLAG_NEW_METADATA);
-		index->offset = be64toh(rp.offset);
-		index->packet_size = be64toh(rp.packet_size);
-		index->content_size = be64toh(rp.content_size);
-		index->ts_cycles.timestamp_begin = be64toh(rp.timestamp_begin);
-		index->ts_cycles.timestamp_end = be64toh(rp.timestamp_end);
-		index->events_discarded = be64toh(rp.events_discarded);
+				rp->flags & LTTNG_VIEWER_FLAG_NEW_METADATA);
+		lttng_index_to_packet_index(rp, index);
+		*stream_id = be64toh(rp->stream_id);
+		viewer_stream->data_pending = 1;
 
-		if (rp.flags & LTTNG_VIEWER_FLAG_NEW_METADATA) {
-			printf_verbose("get_next_index: new metadata needed\n");
-			ret = get_new_metadata(ctx, viewer_stream,
-					&metadata_len);
-			if (ret < 0) {
+		if (rp->flags & LTTNG_VIEWER_FLAG_NEW_METADATA) {
+			ret = append_metadata(ctx, viewer_stream);
+			if (ret)
 				goto error;
-			}
 		}
-		if (rp.flags & LTTNG_VIEWER_FLAG_NEW_STREAM) {
+		if (rp->flags & LTTNG_VIEWER_FLAG_NEW_STREAM) {
+			printf_verbose("get_next_index: need new streams\n");
 			ret = ask_new_streams(ctx);
 			if (ret < 0)
 				goto error;
-			g_hash_table_foreach(ctx->session->ctf_traces, add_traces,
-					ctx->bt_ctx);
+			else if (ret > 0)
+				g_hash_table_foreach(ctx->session->ctf_traces,
+						add_traces, ctx->bt_ctx);
 		}
 		break;
 	case LTTNG_VIEWER_INDEX_RETRY:
 		printf_verbose("get_next_index: retry\n");
-		sleep(0.1);
+		(void) poll(NULL, 0, ACTIVE_POLL_DELAY);
 		goto retry;
 	case LTTNG_VIEWER_INDEX_HUP:
 		printf_verbose("get_next_index: stream hung up\n");
 		viewer_stream->id = -1ULL;
-		viewer_stream->fd = -1;
 		index->offset = EOF;
 		ctx->session->stream_count--;
 		break;
 	case LTTNG_VIEWER_INDEX_ERR:
 		fprintf(stderr, "[error] get_next_index: error\n");
-		ret = -1;
 		goto error;
 	default:
 		fprintf(stderr, "[error] get_next_index: unkwown value\n");
-		ret = -1;
 		goto error;
 	}
-
 	ret = 0;
+end:
+	return ret;
 
 error:
+	return -1;
+}
+
+static
+void read_packet_header(struct ctf_stream_pos *pos,
+		struct ctf_file_stream *file_stream)
+{
+	int ret;
+
+	/* update trace_packet_header and stream_packet_context */
+	if (!(pos->prot & PROT_WRITE) &&
+		file_stream->parent.trace_packet_header) {
+		/* Read packet header */
+		ret = generic_rw(&pos->parent,
+				&file_stream->parent.trace_packet_header->p);
+		if (ret) {
+			pos->offset = EOF;
+			fprintf(stderr, "[error] trace packet "
+					"header read failed\n");
+			goto end;
+		}
+	}
+	if (!(pos->prot & PROT_WRITE) &&
+		file_stream->parent.stream_packet_context) {
+		/* Read packet context */
+		ret = generic_rw(&pos->parent,
+				&file_stream->parent.stream_packet_context->p);
+		if (ret) {
+			pos->offset = EOF;
+			fprintf(stderr, "[error] stream packet "
+					"context read failed\n");
+			goto end;
+		}
+	}
+	pos->data_offset = pos->offset;
+
+end:
+	return;
+}
+
+/*
+ * Handle the seek parameters.
+ * Returns 0 if the packet_seek can continue, a positive value to
+ * cleanly exit the packet_seek, a negative value on error.
+ */
+static
+int handle_seek_position(size_t index, int whence,
+		struct lttng_live_viewer_stream *viewer_stream,
+		struct ctf_stream_pos *pos,
+		struct ctf_file_stream *file_stream)
+{
+	int ret;
+
+	switch (whence) {
+	case SEEK_CUR:
+		ret = 0;
+		goto end;
+	case SEEK_SET:
+		/*
+		 * We only allow to seek to 0.
+		 */
+		if (index != 0) {
+			fprintf(stderr, "[error] Arbitrary seek in lttng-live "
+					"trace not supported\n");
+			pos->offset = EOF;
+			ret = -1;
+			goto end;
+		}
+
+		ret = 0;
+		goto end;
+
+	default:
+		fprintf(stderr, "[error] Invalid seek parameter\n");
+		assert(0);
+	}
+
+end:
 	return ret;
 }
 
@@ -974,14 +1150,21 @@ void ctf_live_packet_seek(struct bt_stream_pos *stream_pos, size_t index,
 	struct packet_index *prev_index = NULL, *cur_index;
 	struct lttng_live_viewer_stream *viewer_stream;
 	struct lttng_live_session *session;
+	uint64_t stream_id = -1ULL;
 	int ret;
 
-retry:
 	pos = ctf_pos(stream_pos);
 	file_stream = container_of(pos, struct ctf_file_stream, pos);
 	viewer_stream = (struct lttng_live_viewer_stream *) pos->priv;
 	session = viewer_stream->session;
 
+	ret = handle_seek_position(index, whence, viewer_stream, pos,
+			file_stream);
+	if (ret != 0) {
+		return;
+	}
+
+retry:
 	switch (pos->packet_index->len) {
 	case 0:
 		g_array_set_size(pos->packet_index, 1);
@@ -1010,11 +1193,45 @@ retry:
 		break;
 	}
 
-	printf_verbose("get_next_index for stream %" PRIu64 "\n", viewer_stream->id);
-	ret = get_next_index(session->ctx, viewer_stream, cur_index);
-	if (ret < 0) {
-		pos->offset = EOF;
-		fprintf(stderr, "[error] get_next_index failed\n");
+	if (viewer_stream->data_pending) {
+		lttng_index_to_packet_index(&viewer_stream->current_index, cur_index);
+	} else {
+		printf_verbose("get_next_index for stream %" PRIu64 "\n", viewer_stream->id);
+		ret = get_next_index(session->ctx, viewer_stream, cur_index, &stream_id);
+		if (ret < 0) {
+			pos->offset = EOF;
+			if (!lttng_live_should_quit()) {
+				fprintf(stderr, "[error] get_next_index failed\n");
+			}
+			return;
+		}
+		printf_verbose("Index received : packet_size : %" PRIu64
+				", offset %" PRIu64 ", content_size %" PRIu64
+				", timestamp_end : %" PRIu64 "\n",
+				cur_index->packet_size, cur_index->offset,
+				cur_index->content_size,
+				cur_index->ts_cycles.timestamp_end);
+
+	}
+
+	/*
+	 * On the first time we receive an index, the stream_id needs to
+	 * be set for the stream in order to use it, we don't want any
+	 * data at this stage.
+	 */
+	if (file_stream->parent.stream_id == -1ULL) {
+		/*
+		 * Warning: with lttng-tools < 2.4.2, the beacon does not
+		 * contain the real stream ID, it is memset to 0, so this
+		 * might create a problem when a session has multiple
+		 * channels. We can't detect it at this stage, lttng-tools
+		 * has to be upgraded to fix this problem.
+		 */
+		printf_verbose("Assigning stream_id %" PRIu64 "\n",
+				stream_id);
+		file_stream->parent.stream_id = stream_id;
+		viewer_stream->ctf_stream_id = stream_id;
+
 		return;
 	}
 
@@ -1028,19 +1245,23 @@ retry:
 	}
 
 	if (cur_index->content_size == 0) {
-		file_stream->parent.cycles_timestamp =
+		if (file_stream->parent.stream_class) {
+			file_stream->parent.cycles_timestamp =
 				cur_index->ts_cycles.timestamp_end;
-		file_stream->parent.real_timestamp = ctf_get_real_timestamp(
-				&file_stream->parent,
-				cur_index->ts_cycles.timestamp_end);
+			file_stream->parent.real_timestamp = ctf_get_real_timestamp(
+					&file_stream->parent,
+					cur_index->ts_cycles.timestamp_end);
+		}
 	} else {
-		/* Convert the timestamps and append to the real_index. */
-		cur_index->ts_real.timestamp_begin = ctf_get_real_timestamp(
-				&file_stream->parent,
-				cur_index->ts_cycles.timestamp_begin);
-		cur_index->ts_real.timestamp_end = ctf_get_real_timestamp(
-				&file_stream->parent,
-				cur_index->ts_cycles.timestamp_end);
+		if (file_stream->parent.stream_class) {
+			/* Convert the timestamps and append to the real_index. */
+			cur_index->ts_real.timestamp_begin = ctf_get_real_timestamp(
+					&file_stream->parent,
+					cur_index->ts_cycles.timestamp_begin);
+			cur_index->ts_real.timestamp_end = ctf_get_real_timestamp(
+					&file_stream->parent,
+					cur_index->ts_cycles.timestamp_end);
+		}
 
 		ctf_update_current_packet_index(&file_stream->parent,
 				prev_index, cur_index);
@@ -1058,43 +1279,20 @@ retry:
 	printf_verbose("get_data_packet for stream %" PRIu64 "\n",
 			viewer_stream->id);
 	ret = get_data_packet(session->ctx, pos, viewer_stream,
-			be64toh(cur_index->offset),
+			cur_index->offset,
 			cur_index->packet_size / CHAR_BIT);
 	if (ret == -2) {
 		goto retry;
 	} else if (ret < 0) {
 		pos->offset = EOF;
-		fprintf(stderr, "[error] get_data_packet failed\n");
+		if (!lttng_live_should_quit()) {
+			fprintf(stderr, "[error] get_data_packet failed\n");
+		}
 		return;
 	}
+	viewer_stream->data_pending = 0;
 
-	printf_verbose("Index received : packet_size : %" PRIu64
-			", offset %" PRIu64 ", content_size %" PRIu64
-			", timestamp_end : %" PRIu64 "\n",
-			cur_index->packet_size, cur_index->offset,
-			cur_index->content_size,
-			cur_index->ts_cycles.timestamp_end);
-
-	/* update trace_packet_header and stream_packet_context */
-	if (pos->prot != PROT_WRITE && file_stream->parent.trace_packet_header) {
-		/* Read packet header */
-		ret = generic_rw(&pos->parent, &file_stream->parent.trace_packet_header->p);
-		if (ret) {
-			pos->offset = EOF;
-			fprintf(stderr, "[error] trace packet header read failed\n");
-			goto end;
-		}
-	}
-	if (pos->prot != PROT_WRITE && file_stream->parent.stream_packet_context) {
-		/* Read packet context */
-		ret = generic_rw(&pos->parent, &file_stream->parent.stream_packet_context->p);
-		if (ret) {
-			pos->offset = EOF;
-			fprintf(stderr, "[error] stream packet context read failed\n");
-			goto end;
-		}
-	}
-	pos->data_offset = pos->offset;
+	read_packet_header(pos, file_stream);
 
 end:
 	return;
@@ -1107,44 +1305,43 @@ int lttng_live_create_viewer_session(struct lttng_live_ctx *ctx)
 	int ret;
 	ssize_t ret_len;
 
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
+
 	cmd.cmd = htobe32(LTTNG_VIEWER_CREATE_SESSION);
 	cmd.data_size = 0;
 	cmd.cmd_version = 0;
 
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = recv(ctx->control_sock, &resp, sizeof(resp), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, &resp, sizeof(resp));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving create session reply");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(resp));
 
 	if (be32toh(resp.status) != LTTNG_VIEWER_CREATE_SESSION_OK) {
 		fprintf(stderr, "[error] Error creating viewer session\n");
-		ret = -1;
 		goto error;
 	}
 	ret = 0;
+end:
+	return ret;
 
 error:
-	return ret;
+	return -1;
 }
 
 static
@@ -1165,14 +1362,15 @@ int del_traces(gpointer key, gpointer value, gpointer user_data)
 static
 void add_traces(gpointer key, gpointer value, gpointer user_data)
 {
-	int i, ret, total_metadata = 0;
-	uint64_t metadata_len;
+	int i, ret;
 	struct bt_context *bt_ctx = user_data;
 	struct lttng_live_ctf_trace *trace = value;
 	struct lttng_live_viewer_stream *stream;
 	struct bt_mmap_stream *new_mmap_stream;
 	struct bt_mmap_stream_list mmap_list;
 	struct lttng_live_ctx *ctx = NULL;
+	struct bt_trace_descriptor *td;
+	struct bt_trace_handle *handle;
 
 	/*
 	 * We don't know how many streams we will receive for a trace, so
@@ -1198,15 +1396,29 @@ void add_traces(gpointer key, gpointer value, gpointer user_data)
 			new_mmap_stream->fd = -1;
 			bt_list_add(&new_mmap_stream->list, &mmap_list.head);
 		} else {
+			char *metadata_buf = NULL;
+
 			/* Get all possible metadata before starting */
-			do {
-				ret = get_new_metadata(ctx, stream,
-						&metadata_len);
-				if (ret == 0) {
-					total_metadata += metadata_len;
-				}
-			} while (ret == 0 || total_metadata == 0);
-			trace->metadata_fp = fopen(stream->path, "r");
+			ret = get_new_metadata(ctx, stream, &metadata_buf);
+			if (ret) {
+				free(metadata_buf);
+				goto end_free;
+			}
+			if (!stream->metadata_len) {
+				fprintf(stderr, "[error] empty metadata\n");
+				ret = -1;
+				free(metadata_buf);
+				goto end_free;
+			}
+
+			trace->metadata_fp = babeltrace_fmemopen(metadata_buf,
+					stream->metadata_len, "rb");
+			if (!trace->metadata_fp) {
+				perror("Metadata fmemopen2");
+				ret = -1;
+				free(metadata_buf);
+				goto end_free;
+			}
 		}
 	}
 
@@ -1221,15 +1433,14 @@ void add_traces(gpointer key, gpointer value, gpointer user_data)
 		fprintf(stderr, "[error] Error adding trace\n");
 		goto end_free;
 	}
+	trace->metadata_stream->metadata_len = 0;
 
+	handle = (struct bt_trace_handle *) g_hash_table_lookup(
+			bt_ctx->trace_handles,
+			(gpointer) (unsigned long) ret);
+	td = handle->td;
+	trace->handle = handle;
 	if (bt_ctx->current_iterator) {
-		struct bt_trace_descriptor *td;
-		struct bt_trace_handle *handle;
-
-		handle = (struct bt_trace_handle *) g_hash_table_lookup(
-				bt_ctx->trace_handles,
-				(gpointer) (unsigned long) ret);
-		td = handle->td;
 		bt_iter_add_trace(bt_ctx->current_iterator, td);
 	}
 
@@ -1244,15 +1455,24 @@ end:
 	return;
 }
 
+/*
+ * Request new streams for a session.
+ * Returns the number of streams received or a negative value on error.
+ */
 int lttng_live_get_new_streams(struct lttng_live_ctx *ctx, uint64_t id)
 {
 	struct lttng_viewer_cmd cmd;
 	struct lttng_viewer_new_streams_request rq;
 	struct lttng_viewer_new_streams_response rp;
 	struct lttng_viewer_stream stream;
-	int ret, i;
+	int ret, i, nb_streams = 0;
 	ssize_t ret_len;
 	uint32_t stream_count;
+
+	if (lttng_live_should_quit()) {
+		ret = -1;
+		goto end;
+	}
 
 	cmd.cmd = htobe32(LTTNG_VIEWER_GET_NEW_STREAMS);
 	cmd.data_size = sizeof(rq);
@@ -1261,37 +1481,27 @@ int lttng_live_get_new_streams(struct lttng_live_ctx *ctx, uint64_t id)
 	memset(&rq, 0, sizeof(rq));
 	rq.session_id = htobe64(id);
 
-	do {
-		ret_len = send(ctx->control_sock, &cmd, sizeof(cmd), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &cmd, sizeof(cmd));
 	if (ret_len < 0) {
 		perror("[error] Error sending cmd");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(cmd));
 
-	do {
-		ret_len = send(ctx->control_sock, &rq, sizeof(rq), 0);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_send(ctx->control_sock, &rq, sizeof(rq));
 	if (ret_len < 0) {
 		perror("[error] Error sending get_new_streams request");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rq));
 
-	do {
-		ret_len = recv(ctx->control_sock, &rp, sizeof(rp), MSG_WAITALL);
-	} while (ret_len < 0 && errno == EINTR);
+	ret_len = lttng_live_recv(ctx->control_sock, &rp, sizeof(rp));
 	if (ret_len == 0) {
 		fprintf(stderr, "[error] Remote side has closed connection\n");
-		ret = -1;
 		goto error;
 	}
 	if (ret_len < 0) {
 		perror("[error] Error receiving get_new_streams response");
-		ret = ret_len;
 		goto error;
 	}
 	assert(ret_len == sizeof(rp));
@@ -1307,13 +1517,11 @@ int lttng_live_get_new_streams(struct lttng_live_ctx *ctx, uint64_t id)
 		goto end;
 	case LTTNG_VIEWER_NEW_STREAMS_ERR:
 		fprintf(stderr, "[error] get_new_streams error\n");
-		ret = -1;
-		goto end;
+		goto error;
 	default:
 		fprintf(stderr, "[error] Unknown return code %u\n",
 				be32toh(rp.status));
-		ret = -1;
-		goto end;
+		goto error;
 	}
 
 	stream_count = be32toh(rp.streams_count);
@@ -1332,17 +1540,13 @@ int lttng_live_get_new_streams(struct lttng_live_ctx *ctx, uint64_t id)
 	ctx->session->streams = g_new0(struct lttng_live_viewer_stream,
 			ctx->session->stream_count);
 	for (i = 0; i < stream_count; i++) {
-		do {
-			ret_len = recv(ctx->control_sock, &stream, sizeof(stream), MSG_WAITALL);
-		} while (ret_len < 0 && errno == EINTR);
+		ret_len = lttng_live_recv(ctx->control_sock, &stream, sizeof(stream));
 		if (ret_len == 0) {
 			fprintf(stderr, "[error] Remote side has closed connection\n");
-			ret = -1;
 			goto error;
 		}
 		if (ret_len < 0) {
 			perror("[error] Error receiving stream");
-			ret = ret_len;
 			goto error;
 		}
 		assert(ret_len == sizeof(stream));
@@ -1355,55 +1559,29 @@ int lttng_live_get_new_streams(struct lttng_live_ctx *ctx, uint64_t id)
 		ctx->session->streams[i].id = be64toh(stream.id);
 		ctx->session->streams[i].session = ctx->session;
 
-		ctx->session->streams[i].first_read = 1;
 		ctx->session->streams[i].mmap_size = 0;
+		ctx->session->streams[i].ctf_stream_id = -1ULL;
 
 		if (be32toh(stream.metadata_flag)) {
-			char *path;
-
-			path = strdup(LTTNG_METADATA_PATH_TEMPLATE);
-			if (!path) {
-				perror("strdup");
-				ret = -1;
-				goto error;
-			}
-			if (!mkdtemp(path)) {
-				perror("mkdtemp");
-				free(path);
-				ret = -1;
-				goto error;
-			}
 			ctx->session->streams[i].metadata_flag = 1;
-			snprintf(ctx->session->streams[i].path,
-					sizeof(ctx->session->streams[i].path),
-					"%s/%s", path,
-					stream.channel_name);
-			ret = open(ctx->session->streams[i].path,
-					O_WRONLY | O_CREAT | O_TRUNC,
-					S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-			if (ret < 0) {
-				perror("open");
-				free(path);
-				goto error;
-			}
-			ctx->session->streams[i].fd = ret;
-			free(path);
 		}
 		ret = lttng_live_ctf_trace_assign(&ctx->session->streams[i],
 				be64toh(stream.ctf_trace_id));
 		if (ret < 0) {
 			goto error;
 		}
+		nb_streams++;
 
 	}
-	ret = 0;
-
+	ret = nb_streams;
 end:
-error:
 	return ret;
+
+error:
+	return -1;
 }
 
-void lttng_live_read(struct lttng_live_ctx *ctx)
+int lttng_live_read(struct lttng_live_ctx *ctx)
 {
 	int ret, i;
 #if 0
@@ -1437,8 +1615,9 @@ void lttng_live_read(struct lttng_live_ctx *ctx)
 
 	sout = container_of(td_write, struct ctf_text_stream_pos,
 			trace_descriptor);
-	if (!sout->parent.event_cb)
+	if (!sout->parent.event_cb) {
 		goto end_free;
+	}
 #endif
 
 	ret = lttng_live_create_viewer_session(ctx);
@@ -1466,13 +1645,24 @@ void lttng_live_read(struct lttng_live_ctx *ctx)
 	for (;;) {
 		int flags;
 #endif
+		if (lttng_live_should_quit()) {
+			ret = 0;
+			goto end_free;
+		}
 
 		while (!ctx->session->stream_count) {
-			if (ctx->session_ids->len == 0)
+			if (lttng_live_should_quit()
+					|| ctx->session_ids->len == 0) {
+				ret = 0;
 				goto end_free;
+			}
 			ret = ask_new_streams(ctx);
-			if (ret < 0)
+			if (ret < 0) {
 				goto end_free;
+			}
+			if (!ctx->session->stream_count) {
+				(void) poll(NULL, 0, ACTIVE_POLL_DELAY);
+			}
 		}
 
 		g_hash_table_foreach(ctx->session->ctf_traces, add_traces,
@@ -1482,11 +1672,19 @@ void lttng_live_read(struct lttng_live_ctx *ctx)
 		begin_pos.type = BT_SEEK_BEGIN;
 		iter = bt_ctf_iter_create(ctx->bt_ctx, &begin_pos, NULL);
 		if (!iter) {
+			if (lttng_live_should_quit()) {
+				ret = 0;
+				goto end;
+			}
 			fprintf(stderr, "[error] Iterator creation error\n");
 			goto end;
 		}
 
 		for (;;) {
+			if (lttng_live_should_quit()) {
+				ret = 0;
+				goto end_free;
+			}
 			event = bt_ctf_iter_read_event_flags(iter, &flags);
 			if (!(flags & BT_ITER_FLAG_RETRY)) {
 				if (!event) {
@@ -1538,5 +1736,9 @@ void lttng_live_read(struct lttng_live_ctx *ctx)
 end_free:
 	bt_context_put(ctx->bt_ctx);
 end:
-	return;
+	ret = 0;
+	if (lttng_live_should_quit()) {
+		ret = 0;
+	}
+	return ret;
 }

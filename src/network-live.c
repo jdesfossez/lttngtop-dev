@@ -51,6 +51,55 @@
 #include <babeltrace/ctf/events-internal.h>
 #include <lib/babeltrace/ctf/ctf-index.h>
 
+static volatile int should_quit;
+
+int lttng_live_should_quit(void)
+{
+	return should_quit;
+}
+
+static
+void sighandler(int sig)
+{
+	switch (sig) {
+	case SIGTERM:
+	case SIGINT:
+		should_quit = 1;
+		break;
+	default:
+		break;
+	}
+}
+
+/*
+ * TODO: Eventually, this signal handler setup should be done at the
+ * plugin manager level, rather than within this plugin. Beware, we are
+ * not cleaning up the signal handler after plugin execution.
+ */
+static
+int setup_sighandler(void)
+{
+	struct sigaction sa;
+	sigset_t sigset;
+	int ret;
+
+	if ((ret = sigemptyset(&sigset)) < 0) {
+		perror("sigemptyset");
+		return ret;
+	}
+	sa.sa_handler = sighandler;
+	sa.sa_mask = sigset;
+	sa.sa_flags = 0;
+	if ((ret = sigaction(SIGTERM, &sa, NULL)) < 0) {
+		perror("sigaction");
+		return ret;
+	}
+	if ((ret = sigaction(SIGINT, &sa, NULL)) < 0) {
+		perror("sigaction");
+		return ret;
+	}
+	return 0;
+}
 /*
  * hostname parameter needs to hold NAME_MAX chars.
  */
@@ -59,14 +108,14 @@ int parse_url(const char *path, struct lttng_live_ctx *ctx)
 {
 	char remain[3][NAME_MAX];
 	int ret = -1, proto, proto_offset = 0;
-	size_t path_len = strlen(path);
+	size_t path_len = strlen(path); /* not accounting \0 */
 
 	/*
 	 * Since sscanf API does not allow easily checking string length
 	 * against a size defined by a macro. Test it beforehand on the
 	 * input. We know the output is always <= than the input length.
 	 */
-	if (path_len > NAME_MAX) {
+	if (path_len >= NAME_MAX) {
 		goto end;
 	}
 	ret = sscanf(path, "net%d://", &proto);
@@ -97,6 +146,10 @@ int parse_url(const char *path, struct lttng_live_ctx *ctx)
 				if (ret < 0) {
 					goto end;
 				}
+			} else if (ret == 0) {
+				fprintf(stderr, "[error] Missing port number after delimitor ':'\n");
+				ret = -1;
+				goto end;
 			}
 			break;
 		case '/':
@@ -115,8 +168,9 @@ int parse_url(const char *path, struct lttng_live_ctx *ctx)
 		}
 	}
 
-	if (ctx->port < 0)
+	if (ctx->port < 0) {
 		ctx->port = LTTNG_DEFAULT_NETWORK_VIEWER_PORT;
+	}
 
 	if (strlen(remain[2]) == 0) {
 		printf_verbose("Connecting to hostname : %s, port : %d, "
@@ -165,10 +219,14 @@ static int lttng_live_open_trace_read(const char *path)
 	if (ret < 0) {
 		goto end_free;
 	}
-
+#if 0
+	ret = setup_sighandler();
+	if (ret < 0) {
+		goto end_free;
+	}
+#endif
 	ret = lttng_live_connect_viewer(ctx);
 	if (ret < 0) {
-		fprintf(stderr, "[error] Connection failed\n");
 		goto end_free;
 	}
 	printf_verbose("LTTng-live connected to relayd\n");
@@ -177,21 +235,26 @@ static int lttng_live_open_trace_read(const char *path)
 	if (ret < 0) {
 		goto end_free;
 	}
+
 	printf_verbose("Listing sessions\n");
 	ret = lttng_live_list_sessions(ctx, path);
 	if (ret < 0) {
-		fprintf(stderr, "[error] List error\n");
 		goto end_free;
 	}
 
-	if (ctx->session_ids->len > 0)
-		lttng_live_read(ctx);
+	if (ctx->session_ids->len > 0) {
+		ret = lttng_live_read(ctx);
+	}
 
 end_free:
 	g_hash_table_destroy(ctx->session->ctf_traces);
 	g_free(ctx->session);
 	g_free(ctx->session->streams);
 	g_free(ctx);
+
+	if (lttng_live_should_quit()) {
+		ret = 0;
+	}
 	return ret;
 }
 
@@ -218,7 +281,9 @@ struct bt_trace_descriptor *lttng_live_open_trace(const char *path, int flags,
 	pos->parent.rw_table = NULL;
 	pos->parent.event_cb = NULL;
 	pos->parent.trace = &pos->trace_descriptor;
-	lttng_live_open_trace_read(path);
+	if (lttng_live_open_trace_read(path) < 0) {
+		goto error;
+	}
 	return &pos->trace_descriptor;
 
 error:
