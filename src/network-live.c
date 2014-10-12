@@ -58,6 +58,7 @@ int lttng_live_should_quit(void)
 	return should_quit;
 }
 
+#if 0
 static
 void sighandler(int sig)
 {
@@ -100,6 +101,8 @@ int setup_sighandler(void)
 	}
 	return 0;
 }
+#endif
+
 /*
  * hostname parameter needs to hold NAME_MAX chars.
  */
