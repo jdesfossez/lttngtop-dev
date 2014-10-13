@@ -328,7 +328,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
-	if (strncmp(bt_ctf_event_name(call_data), "sys_", 4) == 0) {
+	if (strncmp(bt_ctf_event_name(call_data), "sys", 3) == 0) {
 		cpu = get_cpu(cpu_id);
 		cpu->current_syscall = g_new0(struct syscall, 1);
 		cpu->current_syscall->name = strdup(bt_ctf_event_name(call_data));
@@ -945,13 +945,34 @@ void iter_trace(struct bt_context *bt_ctx)
 			g_quark_from_static_string("sys_open"),
 			NULL, 0, handle_sys_open, NULL, NULL, NULL);
 	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("syscall_entry_open"),
+			NULL, 0, handle_sys_open, NULL, NULL, NULL);
+
+	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("sys_socket"),
 			NULL, 0, handle_sys_socket, NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("syscall_entry_socket"),
+			NULL, 0, handle_sys_socket, NULL, NULL, NULL);
+
 	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("sys_close"),
 			NULL, 0, handle_sys_close, NULL, NULL, NULL);
 	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("syscall_entry_close"),
+			NULL, 0, handle_sys_close, NULL, NULL, NULL);
+
+	bt_ctf_iter_add_callback(iter,
 			g_quark_from_static_string("exit_syscall"),
+			NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("syscall_exit_open"),
+			NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("syscall_exit_socket"),
+			NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
+	bt_ctf_iter_add_callback(iter,
+			g_quark_from_static_string("syscall_exit_close"),
 			NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
 	if (opt_textdump) {
 		bt_ctf_iter_add_callback(iter, 0, NULL, 0,
@@ -971,8 +992,21 @@ void iter_trace(struct bt_context *bt_ctx)
 				g_quark_from_static_string("sys_write"),
 				NULL, 0, handle_sys_write, NULL, NULL, NULL);
 		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("syscall_entry_write"),
+				NULL, 0, handle_sys_write, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("syscall_exit_write"),
+				NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
+
+		bt_ctf_iter_add_callback(iter,
 				g_quark_from_static_string("sys_read"),
 				NULL, 0, handle_sys_read, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("syscall_entry_read"),
+				NULL, 0, handle_sys_read, NULL, NULL, NULL);
+		bt_ctf_iter_add_callback(iter,
+				g_quark_from_static_string("syscall_exit_read"),
+				NULL, 0, handle_exit_syscall, NULL, NULL, NULL);
 
 		/* for kprobes */
 		if (lttngtop.kprobes_table) {
