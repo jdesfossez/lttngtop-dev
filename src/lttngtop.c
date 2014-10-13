@@ -266,6 +266,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 	const char *hostname, *procname;
 	struct cputime *cpu;
 	char *from_syscall = NULL;
+	int syscall_exit = 0;
 
 	timestamp = bt_ctf_get_timestamp(call_data);
 
@@ -320,15 +321,22 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 		}
 	}
 
-	if (last_syscall && (strncmp(bt_ctf_event_name(call_data),
-				 "exit_syscall", 12)) != 0) {
+	if (((strncmp(bt_ctf_event_name(call_data),
+						"exit_syscall", 12)) == 0) ||
+			((strncmp(bt_ctf_event_name(call_data),
+				 "syscall_exit", 12)) == 0)) {
+		syscall_exit = 1;
+	}
+
+	if (last_syscall && !syscall_exit) {
 		last_syscall = NULL;
 		fprintf(output, " ...interrupted...\n");
 	}
 
 	cpu_id = get_cpu_id(call_data);
 	procname = get_context_comm(call_data);
-	if (strncmp(bt_ctf_event_name(call_data), "sys", 3) == 0) {
+	if ((strncmp(bt_ctf_event_name(call_data), "sys_", 4) == 0) ||
+			(strncmp(bt_ctf_event_name(call_data), "syscall_entry", 13) == 0)){
 		cpu = get_cpu(cpu_id);
 		cpu->current_syscall = g_new0(struct syscall, 1);
 		cpu->current_syscall->name = strdup(bt_ctf_event_name(call_data));
@@ -336,7 +344,7 @@ enum bt_cb_ret textdump(struct bt_ctf_event *call_data, void *private_data)
 		cpu->current_syscall->cpu_id = cpu_id;
 		last_syscall = cpu->current_syscall;
 		current_syscall = 1;
-	} else if ((strncmp(bt_ctf_event_name(call_data), "exit_syscall", 12)) == 0) {
+	} else if (syscall_exit) {
 		struct tm start_ts;
 
 		/* Return code of a syscall if it was the last displayed event. */
