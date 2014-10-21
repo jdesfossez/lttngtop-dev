@@ -39,7 +39,8 @@
 #include <assert.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
-#include <lttng/lttng.h>
+
+#define LTTNG_SYMBOL_NAME_LEN 256
 
 #ifdef LTTNGTOP_MMAP_LIVE
 #include <lttng/lttngtop-helper.h>
