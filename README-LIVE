@@ -17,7 +17,7 @@ $ lttngtop -r net://relaydhostname/host/<hostname/<session-name>
 A few seconds later, you should begin to see your live trace being displayed in
 lttngtop gui.
 To use the textdump feature, use the -t (and see --help for more options). You
-can also use the new lttngtrace provided by lttngtop which does all the setup
+can also use the new lttngtoptrace provided by lttngtop which does all the setup
 for a live trace in textdump on localhost.
 
 
