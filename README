@@ -39,7 +39,8 @@ To compile Babeltrace and lttngtop, you need:
 	  (Fedora : popt)
 	ncurses development libraries
 	  (Debian : libncurses5-dev)
-	babeltrace = 1.2.3 development library
+	babeltrace = 1.2.4 development library
+	  (Debian : libbabeltrace-dev, libbabeltrace-ctf-dev)
 
 To use the local live tracing feature, you need:
 	lttng-tools >= 2.4
