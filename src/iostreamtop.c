@@ -140,10 +140,12 @@ void close_file(struct processtop *proc, int fd)
 	if (file != NULL) {
 		file->flag = __NR_close;
 		lttngtop.nbfiles--;
+		/*
 		if (file->name) {
 			free(file->name);
 			file->name = NULL;
 		}
+		*/
 	}
 	lttngtop.nbclosedfiles++;
 }
