@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_INIT([lttngtop],[0.2],[julien dot desfossez at efficios dot com])
+AC_INIT([lttngtop],[0.3],[jdesfossez@efficios.com])
 AC_CONFIG_AUX_DIR([config])
 AC_CANONICAL_TARGET
 AC_CANONICAL_HOST

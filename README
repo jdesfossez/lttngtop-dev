@@ -1,12 +1,12 @@
 LTTngTop
-Julien Desfossez <julien.desfossez@efficios.com>
-April 2012
+Julien Desfossez <jdesfossez@efficios.com>
+June 2015
 
 Lttngtop is an ncurses interface for reading and browsing traces recorded by
 the LTTng tracer and displaying various statistics.
 As of now, the cpu usage, per file/process I/O bandwidth and perf counters are
-displayed. This version currently only supports offline traces, but a live
-version is in alpha and will be available for testing soon.
+displayed. This release is the first one that handles live sessions as well as
+offline sessions.
 
 USAGE
 -----
@@ -39,12 +39,12 @@ To compile Babeltrace and lttngtop, you need:
 	  (Fedora : popt)
 	ncurses development libraries
 	  (Debian : libncurses5-dev)
-	babeltrace >= 1.2.0 development library
+	babeltrace = 1.2.3 development library
 
 To use the local live tracing feature, you need:
 	lttng-tools >= 2.4
 	lttng-modules >= 2.4
-	babeltrace >= 1.2.0
+	babeltrace = 1.2.4
 
 For developers using the git tree:
 
