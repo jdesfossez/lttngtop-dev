@@ -1,2 +1,2 @@
-dist_bin_SCRIPTS = lttngtrace
-EXTRA_DIST = lttngtrace
+dist_bin_SCRIPTS = lttngtoptrace
+EXTRA_DIST = lttngtoptrace
