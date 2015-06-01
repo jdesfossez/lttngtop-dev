@@ -1,2 +1,6 @@
+2015-06-01 LTTngTop 0.3
+	* Live tracing support (local or remote)
+	* Introduction of lttngtoptrace
+
 2012-02-16 LTTngTop 0.2
 	* Remove internal Babeltrace code, use the API
