@@ -53,7 +53,7 @@ launched as root.
 
 .nf
 lttng create lttngtop
-lttng enable-event -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switchsched_process_fork -s lttngtop
+lttng enable-event -k lttng_statedump_start,lttng_statedump_end,lttng_statedump_process_state,lttng_statedump_file_descriptor,lttng_statedump_vm_map,lttng_statedump_network_interface,lttng_statedump_interrupt,sched_process_free,sched_switch,sched_process_fork -s lttngtop
 lttng enable-event -k --syscall -a -s lttngtop
 lttng add-context -k -t pid -t procname -t tid -t ppid -t perf:cache-misses -t perf:major-faults -t perf:branch-load-misses -s lttngtop
 lttng start lttngtop
